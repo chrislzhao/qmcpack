@@ -31,9 +31,10 @@
 /// \param[out]  cont_vec  contracted results
 ///
 //////////////////////////////////////////////////////////////////////////////////////////////////
-void cqmc::engine::LMBlockerMatData::prep_block_ou_contractions(const std::vector<double> & dr, 
-                                                                const formic::Matrix<double> & ou_mat, 
-                                                                std::vector<formic::ColVec<double> > & cont_vec) {
+template<class S>
+void cqmc::engine::LMBlockerMatData<S>::prep_block_ou_contractions(const std::vector<S> & dr, 
+                                                                   const formic::Matrix<double> & ou_mat, 
+                                                                   std::vector<formic::ColVec<S> > & cont_vec) {
   
   // loop over blocks
   for (int b = 0; b < this->nb(); b++) {
@@ -41,9 +42,9 @@ void cqmc::engine::LMBlockerMatData::prep_block_ou_contractions(const std::vecto
     const int ibeg = 1 + m_block_beg.at(b);
     const int len = m_block_len.at(b);
 
-    formic::ColVec<double> & cont = cont_vec.at(b);
+    formic::ColVec<S> & cont = cont_vec.at(b);
     for (int i = 0; i < cont.size(); i++)
-      cont.at(i) = 0.0;
+      cont.at(i) = zero(S());
 
     for (int k = 0; k < m_nou; k++) {
       for (int j = ibeg; j < ibeg+len; j++) {
@@ -62,7 +63,8 @@ void cqmc::engine::LMBlockerMatData::prep_block_ou_contractions(const std::vecto
 /// \param[out]  mat   output matrix
 ///
 ////////////////////////////////////////////////////////////////////////////////////////////////
-void cqmc::engine::LMBlockerMatData::prep_lm_block_plus_other_ou_matrix(const int b, const int x, formic::Matrix<double> & mat) {
+template<class S>
+void cqmc::engine::LMBlockerMatData<S>::prep_lm_block_plus_other_ou_matrix(const int b, const int x, formic::Matrix<S> & mat) {
 
   // first check that if x and b is the same block
   if ( x == b ) 
@@ -138,7 +140,8 @@ void cqmc::engine::LMBlockerMatData::prep_lm_block_plus_other_ou_matrix(const in
 /// \param[in]   ou_mat   matrix storing the old update coefficients
 ///
 ////////////////////////////////////////////////////////////////////////////////////////////////
-void cqmc::engine::LMBlockerMatData::acc(const double d, const std::vector<double> & lr, const std::vector<double> &rr, const formic::Matrix<double> & ou_mat) {
+template<class S>
+void cqmc::engine::LMBlockerMatData<S>::acc(const S d, const std::vector<S> & lr, const std::vector<S> &rr, const formic::Matrix<double> & ou_mat) {
   
   // get the thread number 
   int myThread = omp_get_thread_num();
@@ -154,7 +157,7 @@ void cqmc::engine::LMBlockerMatData::acc(const double d, const std::vector<doubl
   this->prep_block_ou_contractions(rr, ou_mat, m_bourr[myThread]);
 
   // <wfn|wfn>
-  m_ww[myThread] += d * lr.at(0) * rr.at(0);
+  m_ww[myThread] += d * conj(lr.at(0)) * rr.at(0);
 
   // loop over blocks
   for (int b = 0; b < this->nb(); b++) {
@@ -168,40 +171,40 @@ void cqmc::engine::LMBlockerMatData::acc(const double d, const std::vector<doubl
     for (int i = 0; i < len; i++) {
 
       // <wfn|var>
-      m_wv[myThread].at(b).at(i) += d * lr.at(0) * rr.at(ibeg + i);
+      m_wv[myThread].at(b).at(i) += d * conj(lr.at(0)) * rr.at(ibeg + i);
 
       // <var|wfn>
-      m_vw[myThread].at(b).at(i) += d * lr.at(ibeg + i) * rr.at(0);
+      m_vw[myThread].at(b).at(i) += d * conj(lr.at(ibeg + i)) * rr.at(0);
 
     }
 
     for (int k = 0; k < m_nou; k++) {
 
       // <wfn|old_updates>
-      m_wo[myThread].at(b).at(k) += d * lr.at(0) * m_bourr[myThread].at(b).at(k);
+      m_wo[myThread].at(b).at(k) += d * conj(lr.at(0)) * m_bourr[myThread].at(b).at(k);
       
       // <old_updates|wfn>
-      m_ow[myThread].at(b).at(k) += d * m_boulr[myThread].at(b).at(k) * rr.at(0);
+      m_ow[myThread].at(b).at(k) += d * conj(m_boulr[myThread].at(b).at(k)) * rr.at(0);
     }
 
     // <var|var>
-    { formic::Matrix<double> & vv_mat = m_vv[myThread].at(b);
+    { formic::Matrix<S> & vv_mat = m_vv[myThread].at(b);
       for (int i = 0; i < len; i++) {
         for (int j = 0; j < len; j++) {
-          vv_mat.at(i,j) += d * lr.at(ibeg+i) * rr.at(ibeg+j);
+          vv_mat.at(i,j) += d * conj(lr.at(ibeg+i)) * rr.at(ibeg+j);
         }
       }
     }
 
     // <var|old_update> note this is for var in the current block and old-update in all other blocks
-    { formic::Matrix<double> & vo_mat = m_vo[myThread].at(b);
+    { formic::Matrix<S> & vo_mat = m_vo[myThread].at(b);
       for (int x = 0, y = 0; x < this->nb(); x++) {
         if ( x == b )
           continue;
-        const formic::ColVec<double> & rr_vec = m_bourr[myThread].at(x);
+        const formic::ColVec<S> & rr_vec = m_bourr[myThread].at(x);
         for (int o = 0; o < m_nou; o++) {
           for (int i = 0; i < len; i++) {
-            vo_mat.at(i,y*m_nou+o) += d * lr.at(ibeg+i) * rr_vec.at(o);
+            vo_mat.at(i,y*m_nou+o) += d * conj(lr.at(ibeg+i)) * rr_vec.at(o);
            }
          } 
          y++;
@@ -209,14 +212,14 @@ void cqmc::engine::LMBlockerMatData::acc(const double d, const std::vector<doubl
      } 
 
      // <old_update|var> note this is for var in the current block and old-update in all other blocks
-     { formic::Matrix<double> & ov_mat = m_ov[myThread].at(b);
+     { formic::Matrix<S> & ov_mat = m_ov[myThread].at(b);
        for (int i = 0; i < len; i++) {
          for (int x = 0, y = 0; x < this->nb(); x++) {
            if ( x == b ) 
              continue;
-           const formic::ColVec<double> & lr_vec = m_boulr[myThread].at(x);
+           const formic::ColVec<S> & lr_vec = m_boulr[myThread].at(x);
            for (int k = 0; k < m_nou; k++) {
-             ov_mat.at(m_nou*y+k, i) += d * lr_vec.at(k) * rr.at(ibeg+i);
+             ov_mat.at(m_nou*y+k, i) += d * conj(lr_vec.at(k)) * rr.at(ibeg+i);
            }
            y++;
          }
@@ -224,10 +227,10 @@ void cqmc::engine::LMBlockerMatData::acc(const double d, const std::vector<doubl
      }
 
      // <old_update|old_update>
-     { formic::Matrix<double> & oo_mat = m_oo[myThread].at(b);
+     { formic::Matrix<S> & oo_mat = m_oo[myThread].at(b);
        for (int k = 0; k < m_nou; k++) {
          for (int l = 0; l < m_nou; l++) {
-           oo_mat.at(k,l) += d * m_boulr[myThread].at(b).at(k) * m_bourr[myThread].at(b).at(l);
+           oo_mat.at(k,l) += d * conj(m_boulr[myThread].at(b).at(k)) * m_bourr[myThread].at(b).at(l);
          }
        }
      }
@@ -238,7 +241,8 @@ void cqmc::engine::LMBlockerMatData::acc(const double d, const std::vector<doubl
 /// \brief  Function that finalizes the accumulation by dividing matrices total weight
 ///
 ////////////////////////////////////////////////////////////////////////////////////////////////
-void cqmc::engine::LMBlockerMatData::finalize(const double total_weight) {
+template<class S>
+void cqmc::engine::LMBlockerMatData<S>::finalize(const S total_weight) {
   
   // get the number of threads
   int NumThreads = omp_get_max_threads();
@@ -278,7 +282,8 @@ void cqmc::engine::LMBlockerMatData::finalize(const double total_weight) {
 ///         across the whole processes
 ///
 ////////////////////////////////////////////////////////////////////////////////////////////////
-void cqmc::engine::LMBlockerMatData::mpi_finalize(const double total_weight) {
+template<class S>
+void cqmc::engine::LMBlockerMatData::mpi_finalize(const S total_weight) {
   
   // get rank number and number of ranks
   int my_rank = formic::mpi::rank();
@@ -312,23 +317,23 @@ void cqmc::engine::LMBlockerMatData::mpi_finalize(const double total_weight) {
   }
 
   // <wfn|wfn>
-  double m_ww_tot = 0.0;
+  double m_ww_tot = zero(S());
   formic::mpi::reduce(&m_ww[0], &m_ww_tot, 1, MPI::SUM);
   //MPI_Reduce(&m_ww, &m_ww_tot, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
   m_ww[0] = m_ww_tot / total_weight;
 
   // get space for MPI reduce 
-  std::vector<formic::ColVec<double> > m_wv_tot, m_vw_tot, m_wo_tot, m_ow_tot;
-  std::vector<formic::Matrix<double> > m_vv_tot, m_vo_tot, m_ov_tot, m_oo_tot;
+  std::vector<formic::ColVec<S> > m_wv_tot, m_vw_tot, m_wo_tot, m_ow_tot;
+  std::vector<formic::Matrix<S> > m_vv_tot, m_vo_tot, m_ov_tot, m_oo_tot;
   for (int i = 0; i < this->nb(); i++) {
-    m_wv_tot.push_back(formic::ColVec<double>(this->bl(i), 0.0));
-    m_vw_tot.push_back(formic::ColVec<double>(this->bl(i), 0.0));
-    m_vv_tot.push_back(formic::Matrix<double>(this->bl(i), this->bl(i), 0.0));
-    m_wo_tot.push_back(formic::ColVec<double>(m_nou, 0.0));
-    m_ow_tot.push_back(formic::ColVec<double>(m_nou, 0.0));
-    m_ov_tot.push_back(formic::Matrix<double>((this->nb()-1)*m_nou, this->bl(i), 0.0));
-    m_vo_tot.push_back(formic::Matrix<double>(this->bl(i), (this->nb()-1)*m_nou, 0.0));
-    m_oo_tot.push_back(formic::Matrix<double>(m_nou, m_nou, 0.0));
+    m_wv_tot.push_back(formic::ColVec<S>(this->bl(i), zero(S())));
+    m_vw_tot.push_back(formic::ColVec<S>(this->bl(i), zero(S())));
+    m_vv_tot.push_back(formic::Matrix<S>(this->bl(i), this->bl(i), zero(S())));
+    m_wo_tot.push_back(formic::ColVec<S>(m_nou, zero(S())));
+    m_ow_tot.push_back(formic::ColVec<S>(m_nou, zero(S())));
+    m_ov_tot.push_back(formic::Matrix<S>((this->nb()-1)*m_nou, this->bl(i), zero(S())));
+    m_vo_tot.push_back(formic::Matrix<S>(this->bl(i), (this->nb()-1)*m_nou, zero(S())));
+    m_oo_tot.push_back(formic::Matrix<S>(m_nou, m_nou, zero(S())));
   }
 
   // do MPI reduce
@@ -369,7 +374,8 @@ void cqmc::engine::LMBlockerMatData::mpi_finalize(const double total_weight) {
 /// \brief  Function that resets the matrices
 ///
 /////////////////////////////////////////////////////////////////////////////////////////////////
-void cqmc::engine::LMBlockerMatData::reset(const int nv, const int nblock, const int nou) {
+template<class S>
+void cqmc::engine::LMBlockerMatData<S>::reset(const int nv, const int nblock, const int nou) {
   
   m_nou = nou;
 
@@ -379,13 +385,13 @@ void cqmc::engine::LMBlockerMatData::reset(const int nv, const int nblock, const
   // get the maximum number of threads 
   int NumThreads = omp_get_max_threads();
   
-  m_ww.assign(NumThreads, 0.0);
+  m_ww.assign(NumThreads, zero(S()));
 
   m_wv.clear();
   m_wv.resize(NumThreads);
   for (int ip = 0; ip < NumThreads; ip++) {
     for (int i = 0; i < this->nb(); i++) {
-      m_wv[ip].push_back(formic::ColVec<double>(this->bl(i), 0.0));
+      m_wv[ip].push_back(formic::ColVec<S>(this->bl(i), zero(S())));
     }
   }
 
@@ -393,7 +399,7 @@ void cqmc::engine::LMBlockerMatData::reset(const int nv, const int nblock, const
   m_vw.resize(NumThreads);
   for (int ip = 0; ip < NumThreads; ip++) {
     for (int i = 0; i < this->nb(); i++) {
-      m_vw[ip].push_back(formic::ColVec<double>(this->bl(i), 0.0));
+      m_vw[ip].push_back(formic::ColVec<S>(this->bl(i), zero(S())));
     }
   }
 
@@ -401,7 +407,7 @@ void cqmc::engine::LMBlockerMatData::reset(const int nv, const int nblock, const
   m_vv.resize(NumThreads);
   for (int ip = 0; ip < NumThreads; ip++) {
     for (int i = 0; i < this->nb(); i++) {
-      m_vv[ip].push_back(formic::Matrix<double>(this->bl(i), this->bl(i), 0.0));
+      m_vv[ip].push_back(formic::Matrix<S>(this->bl(i), this->bl(i), zero(S())));
     }
   }
 
@@ -409,7 +415,7 @@ void cqmc::engine::LMBlockerMatData::reset(const int nv, const int nblock, const
   m_wo.resize(NumThreads);
   for (int ip = 0; ip < NumThreads; ip++) {
     for (int i = 0; i < this->nb(); i++) {
-      m_wo[ip].push_back(formic::ColVec<double>(m_nou, 0.0));
+      m_wo[ip].push_back(formic::ColVec<S>(m_nou, zero(S())));
     }
   }
 
@@ -417,7 +423,7 @@ void cqmc::engine::LMBlockerMatData::reset(const int nv, const int nblock, const
   m_ow.resize(NumThreads);
   for (int ip = 0; ip < NumThreads; ip++) {
     for (int i = 0; i < this->nb(); i++) {
-      m_ow[ip].push_back(formic::ColVec<double>(m_nou, 0.0));
+      m_ow[ip].push_back(formic::ColVec<S>(m_nou, zero(S())));
     }
   }
 
@@ -425,7 +431,7 @@ void cqmc::engine::LMBlockerMatData::reset(const int nv, const int nblock, const
   m_vo.resize(NumThreads);
   for (int ip = 0; ip < NumThreads; ip++) {
     for (int i = 0; i < this->nb(); i++) {
-      m_vo[ip].push_back(formic::Matrix<double>(this->bl(i), (this->nb()-1)*m_nou, 0.0));
+      m_vo[ip].push_back(formic::Matrix<S>(this->bl(i), (this->nb()-1)*m_nou, zero(S())));
     }
   }
 
@@ -433,7 +439,7 @@ void cqmc::engine::LMBlockerMatData::reset(const int nv, const int nblock, const
   m_ov.resize(NumThreads);
   for (int ip = 0; ip < NumThreads; ip++) {
     for (int i = 0; i < this->nb(); i++) {
-      m_ov[ip].push_back(formic::Matrix<double>((this->nb()-1)*m_nou, this->bl(i), 0.0));
+      m_ov[ip].push_back(formic::Matrix<S>((this->nb()-1)*m_nou, this->bl(i), zero(S())));
     }
   }
 
@@ -441,7 +447,7 @@ void cqmc::engine::LMBlockerMatData::reset(const int nv, const int nblock, const
   m_oo.resize(NumThreads);
   for (int ip = 0; ip < NumThreads; ip++) {
     for (int i = 0; i < this->nb(); i++) {
-      m_oo[ip].push_back(formic::Matrix<double>(m_nou, m_nou, 0.0));
+      m_oo[ip].push_back(formic::Matrix<S>(m_nou, m_nou, zero(S())));
     }
   }
 
@@ -451,8 +457,8 @@ void cqmc::engine::LMBlockerMatData::reset(const int nv, const int nblock, const
   m_bourr.resize(NumThreads);
   for (int ip = 0; ip < NumThreads; ip++) {
     for (int i = 0; i < this->nb(); i++) {
-      m_boulr[ip].push_back(formic::ColVec<double>(m_nou, 0.0));
-      m_bourr[ip].push_back(formic::ColVec<double>(m_nou, 0.0));
+      m_boulr[ip].push_back(formic::ColVec<S>(m_nou, zero(S())));
+      m_bourr[ip].push_back(formic::ColVec<S>(m_nou, zero(S())));
     }
   }
 }

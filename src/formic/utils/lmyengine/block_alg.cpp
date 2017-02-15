@@ -36,7 +36,8 @@
 /// \param[in]   ground   whether this is a ground state calculation
 ///
 /////////////////////////////////////////////////////////////////////////////////////////////////
-void cqmc::engine::LMBlocker::acc(const double d, const std::vector<double> & dr, const std::vector<double> & er, const bool ground, const double hd_lm_shift) {
+template<class S> 
+void cqmc::engine::LMBlocker<S>::acc(const S d, const std::vector<S> & dr, const std::vector<S> & er, const bool ground, const double hd_lm_shift) {
   
   // adds up total weight
   # pragma omp critical
@@ -61,7 +62,8 @@ void cqmc::engine::LMBlocker::acc(const double d, const std::vector<double> & dr
 /// \param[in]   ou        vector of vector storing the old update coefficients
 ///
 //////////////////////////////////////////////////////////////////////////////////////////////////
-void cqmc::engine::LMBlocker::reset(const int nv, const int nblock, const std::vector<formic::ColVec<double> > & ou, const bool ground, const bool iterative) {
+template<class S> 
+void cqmc::engine::LMBlocker<S>::reset(const int nv, const int nblock, const std::vector<formic::ColVec<double> > & ou, const bool ground, const bool iterative) {
   
   // reset the total weight to be zero
   m_tw = 0.0;
@@ -89,7 +91,8 @@ void cqmc::engine::LMBlocker::reset(const int nv, const int nblock, const std::v
 /// \brief  Function that finalizes data accumulation
 ///
 /////////////////////////////////////////////////////////////////////////////////////////////////
-void cqmc::engine::LMBlocker::finalize() {
+template<class S>
+void cqmc::engine::LMBlocker<S>::finalize() {
   
   m_hdata.finalize(m_tw);
   m_sdata.finalize(m_tw);
@@ -99,7 +102,8 @@ void cqmc::engine::LMBlocker::finalize() {
 /// \brief  Function that finalizes data accumulation across all processors
 ///
 /////////////////////////////////////////////////////////////////////////////////////////////////
-void cqmc::engine::LMBlocker::mpi_finalize(const double total_weight) {
+template<class S>
+void cqmc::engine::LMBlocker<S>::mpi_finalize(const S total_weight) {
   
   // call mpi finalize function for data matrices
   m_hdata.mpi_finalize(total_weight);
@@ -115,7 +119,8 @@ void cqmc::engine::LMBlocker::mpi_finalize(const double total_weight) {
 /// \param[out]   dd    the output matrix
 ///
 /////////////////////////////////////////////////////////////////////////////////////////////////
-void cqmc::engine::LMBlocker::prep_lm_block_plus_other_ou_dd_matrix(const int b, const int x, formic::Matrix<double> & dd) {
+template<class S>
+void cqmc::engine::LMBlocker<S>::prep_lm_block_plus_other_ou_dd_matrix(const int b, const int x, formic::Matrix<double> & dd) {
   
   // begining index of the block
   const int ibeg = 1 + m_hdata.bb(b);
@@ -154,14 +159,15 @@ void cqmc::engine::LMBlocker::prep_lm_block_plus_other_ou_dd_matrix(const int b,
 /// \param[in]   iterative     whether to use iterative method 
 ///
 /////////////////////////////////////////////////////////////////////////////////////////////////
-void cqmc::engine::LMBlocker::solve_for_block_dirs(const formic::VarDeps * dep_ptr,
-                                                   const int nkps,
-                                                   const double shift_i,
-                                                   const double shift_s,
-                                                   const std::vector<double> & shift_scale,
-                                                   std::vector<std::vector<formic::Matrix<double> > > & block_ups,
-                                                   std::ostream & output,
-                                                   const double omega) {
+template<class S>
+void cqmc::engine::LMBlocker<S>::solve_for_block_dirs(const formic::VarDeps * dep_ptr,
+                                                      const int nkps,
+                                                      const double shift_i,
+                                                      const double shift_s,
+                                                      const std::vector<double> & shift_scale,
+                                                      std::vector<std::vector<formic::Matrix<double> > > & block_ups,
+                                                      std::ostream & output,
+                                                      const double omega) {
 
   // get rank number and number of ranks
   int my_rank = formic::mpi::rank();
@@ -207,14 +213,15 @@ void cqmc::engine::LMBlocker::solve_for_block_dirs(const formic::VarDeps * dep_p
       const int len = m_hdata.bl(b);
 
       // 
-      formic::Matrix<double> block_target_vecs(len, m_hdata.nb()-1);
+      formic::Matrix<S> block_target_vecs(len, m_hdata.nb()-1);
 
       for (int x = 0, y = 0; x < m_hdata.nb(); x++) {
         if (x == b)
           continue;
         
         // construct block matrix
-        formic::Matrix<double> hh, ss, dd, up;
+        formic::Matrix<S> hh, ss;
+        formic::Matrix<double> dd, up;
 
         // build the matrices on root process
         if ( my_rank == 0 ) {

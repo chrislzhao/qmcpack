@@ -16,12 +16,10 @@
 
 namespace cqmc {
 
-  void unbiased_ratio_of_means(const int n, const double * const p, const double * const f, const double * const g, const bool correct, double & r, double & v);
-  void mpi_unbiased_ratio_of_means(const int n, const double * const p, const double * const f, const double * const g, const bool correct, double & r, double & v);
+  template<class S> void unbiased_ratio_of_means(const int n, const S * const p, const S * const f, const S * const g, const bool correct, S & r, S & v);
+  template<class S> void mpi_unbiased_ratio_of_means(const int n, const S * const p, const S * const f, const S * const g, const bool correct, S & r, S & v);
   int my_round(const double d);
 
-
-  
 }
 
 #endif

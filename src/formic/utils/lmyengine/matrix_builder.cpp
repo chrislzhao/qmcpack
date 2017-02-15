@@ -18,6 +18,7 @@
 #include<formic/utils/openmp.h>
 
 #include<formic/utils/exception.h>
+#include<formic/zero_one.h>
 #include<formic/utils/lapack_interface.h>
 #include<formic/utils/mpi_interface.h>
 #include<formic/utils/lmyengine/matrix_builder.h>
@@ -29,11 +30,12 @@
 //
 //
 //////////////////////////////////////////////////////////////////////////////////////////////
-cqmc::engine::HamOvlpBuilderHD::HamOvlpBuilderHD(formic::Matrix<double> & der_rat, 
-                                                 formic::Matrix<double> & le_der,
-                                                 formic::Matrix<double> & ls_der,
-                                                 const std::vector<double> & vgs,
-                                                 const std::vector<double> & weight,
+template<class S>
+cqmc::engine::HamOvlpBuilderHD<S>::HamOvlpBuilderHD(formic::Matrix<S> & der_rat, 
+                                                 formic::Matrix<S> & le_der,
+                                                 formic::Matrix<S> & ls_der,
+                                                 const std::vector<S> & vgs,
+                                                 const std::vector<S> & weight,
                                                  const double hd_shift,
                                                  const int num_params,
                                                  const int appro_degree,
@@ -75,10 +77,10 @@ _print_matrix(print_matrix)
   // size the matrix correctly
   int ndim = _num_params + 1;
   for (int ip = 0; ip < NumThreads; ip++) {
-    _hmat_temp[ip].reset(ndim, ndim, 0.0);
-    _smat_temp[ip].reset(ndim, ndim, 0.0);
+    _hmat_temp[ip].reset(ndim, ndim, zero(S()));
+    _smat_temp[ip].reset(ndim, ndim, zero(S()));
     if ( _ss_build ) 
-      _ssmat_temp[ip].reset(ndim, ndim, 0.0);
+      _ssmat_temp[ip].reset(ndim, ndim, zero(S()));
   }
 
 }
@@ -87,7 +89,8 @@ _print_matrix(print_matrix)
 // \brief function that get parameters
 // 
 /////////////////////////////////////////////////////////////////////////////////////////////
-void cqmc::engine::HamOvlpBuilderHD::get_param(const double hd_shift, 
+template<class S>
+void cqmc::engine::HamOvlpBuilderHD<S>::get_param(const double hd_shift, 
                                                const int num_params,
                                                const int appro_degree, 
                                                const bool spam_use, 
@@ -114,10 +117,10 @@ void cqmc::engine::HamOvlpBuilderHD::get_param(const double hd_shift,
   // size the matrix correctly
   int ndim = _num_params + 1;
   for (int ip = 0; ip < NumThreads; ip++) {
-    _hmat_temp[ip].reset(ndim, ndim, 0.0);
-    _smat_temp[ip].reset(ndim, ndim, 0.0);
+    _hmat_temp[ip].reset(ndim, ndim, zero(S()));
+    _smat_temp[ip].reset(ndim, ndim, zero(S()));
     if ( _ss_build ) 
-      _ssmat_temp[ip].reset(ndim, ndim, 0.0);
+      _ssmat_temp[ip].reset(ndim, ndim, zero(S()));
   }
 
 }
@@ -151,11 +154,12 @@ void cqmc::engine::HamOvlpBuilderHD::get_param(const double hd_shift,
 //
 //
 /////////////////////////////////////////////////////////////////////////////////////////////
-void cqmc::engine::HamOvlpBuilderHD::take_sample(std::vector<double> & der_rat_samp,
-                                                 std::vector<double> & le_der_samp,
-                                                 std::vector<double> & ls_der_samp,
-                                                 double vgs_samp,
-                                                 double weight_samp)
+template<class S>
+void cqmc::engine::HamOvlpBuilderHD<S>::take_sample(std::vector<S> & der_rat_samp,
+                                                 std::vector<S> & le_der_samp,
+                                                 std::vector<S> & ls_der_samp,
+                                                 S vgs_samp,
+                                                 S weight_samp)
 
 {
   
@@ -171,12 +175,12 @@ void cqmc::engine::HamOvlpBuilderHD::take_sample(std::vector<double> & der_rat_s
 
   // check whether matrices are of the correct size and resize it if not 
   if ( _hmat_temp.at(myThread).rows() != _hmat_temp.at(myThread).cols() || _hmat_temp.at(myThread).rows() != der_rat_samp.size() ) 
-    _hmat_temp.at(myThread).reset(ndim, ndim, 0.0);
+    _hmat_temp.at(myThread).reset(ndim, ndim, zero(S()));
   if ( _smat_temp.at(myThread).rows() != _smat_temp.at(myThread).cols() || _smat_temp.at(myThread).rows() != der_rat_samp.size() ) 
-    _smat_temp.at(myThread).reset(ndim, ndim, 0.0);
+    _smat_temp.at(myThread).reset(ndim, ndim, zero(S()));
   if ( _ss_build ) {
     if ( _ssmat_temp.at(myThread).rows() != _ssmat_temp.at(myThread).cols() || _ssmat_temp.at(myThread).rows() != der_rat_samp.size() ) 
-      _ssmat_temp.at(myThread).reset(ndim, ndim, 0.0);
+      _ssmat_temp.at(myThread).reset(ndim, ndim, zero(S()));
   }
 
   //std::cout << boost::format("entering take_sample function in matrix build3") << std::endl;
@@ -188,14 +192,14 @@ void cqmc::engine::HamOvlpBuilderHD::take_sample(std::vector<double> & der_rat_s
   if ( _ground_state ) {
      
     // add contribution to hamiltonian matrix 
-    formic::dgemm('N', 'N', ndim, ndim, 1, ww, &der_rat_samp.at(0), ndim, &le_der_samp.at(0), 1, 1.0, &(_hmat_temp.at(myThread).at(0,0)), ndim);
+    formic::xgemm('N', 'N', ndim, ndim, 1, ww, &der_rat_samp.at(0), ndim, &le_der_samp.at(0), 1, unity(S()), &(_hmat_temp.at(myThread).at(0,0)), ndim);
 
     // add contribution to overlap matrix 
-    formic::dgemm('N', 'N', ndim, ndim, 1, ww, &der_rat_samp.at(0), ndim, &der_rat_samp.at(0), 1, 1.0, &(_smat_temp.at(myThread).at(0,0)), ndim);
+    formic::xgemm('N', 'N', ndim, ndim, 1, ww, &der_rat_samp.at(0), ndim, &der_rat_samp.at(0), 1, unity(S()), &(_smat_temp.at(myThread).at(0,0)), ndim);
 
     // add contribution to spin matrix if requested 
     if ( _ss_build ) 
-      formic::dgemm('N', 'N', ndim, ndim, 1, ww, &der_rat_samp.at(0), ndim, &ls_der_samp.at(0), 1, 1.0, &(_ssmat_temp.at(myThread).at(0,0)), ndim);
+      formic::xgemm('N', 'N', ndim, ndim, 1, ww, &der_rat_samp.at(0), ndim, &ls_der_samp.at(0), 1, unity(S()), &(_ssmat_temp.at(myThread).at(0,0)), ndim);
 
   }
   
@@ -203,15 +207,15 @@ void cqmc::engine::HamOvlpBuilderHD::take_sample(std::vector<double> & der_rat_s
   else {
   
     // combine bare and energy derivative ratio with respect to harmonic davidson shift 
-    std::vector<double> hle_der_samp(ndim, 0.0);
+    std::vector<double> hle_der_samp(ndim, zero(S()));
     for ( int i = 0; i < ndim; i++) 
       hle_der_samp.at(i) = _hd_shift * der_rat_samp.at(i) - le_der_samp.at(i);
 
     // add contribution to hailtonian matrix 
-    formic::dgemm('N', 'N', ndim, ndim, 1, ww, &der_rat_samp.at(0), ndim, &hle_der_samp.at(0), 1, 1.0, &(_hmat_temp.at(myThread).at(0,0)), ndim);
+    formic::xgemm('N', 'N', ndim, ndim, 1, ww, &der_rat_samp.at(0), ndim, &hle_der_samp.at(0), 1, unity(S()), &(_hmat_temp.at(myThread).at(0,0)), ndim);
 
     // add contribution to overlap matrix
-    formic::dgemm('N', 'N', ndim, ndim, 1, ww, &hle_der_samp.at(0), ndim, &hle_der_samp.at(0), 1, 1.0, &(_smat_temp.at(myThread).at(0,0)), ndim);
+    formic::xgemm('N', 'N', ndim, ndim, 1, ww, &hle_der_samp.at(0), ndim, &hle_der_samp.at(0), 1, unity(S()), &(_smat_temp.at(myThread).at(0,0)), ndim);
 
   }
 }
@@ -221,7 +225,8 @@ void cqmc::engine::HamOvlpBuilderHD::take_sample(std::vector<double> & der_rat_s
 /// 
 ///
 /////////////////////////////////////////////////////////////////////////////////////////////
-void cqmc::engine::HamOvlpBuilderHD::finish_sample(const double total_weight) 
+template<class S>
+void cqmc::engine::HamOvlpBuilderHD<S>::finish_sample(const S total_weight) 
 {
 
   // get rank number and number of ranks 
@@ -247,16 +252,16 @@ void cqmc::engine::HamOvlpBuilderHD::finish_sample(const double total_weight)
   //std::cout << "netering matrix build finish_sample2" << std::endl;
 
   // temporary matrices used in mpi reduce
-  _hmat.reset(_hmat_temp[0].rows(), _hmat_temp[0].cols(), 0.0);
-  _smat.reset(_smat_temp[0].rows(), _smat_temp[0].cols(), 0.0);
+  _hmat.reset(_hmat_temp[0].rows(), _hmat_temp[0].cols(), zero(S()));
+  _smat.reset(_smat_temp[0].rows(), _smat_temp[0].cols(), zero(S()));
   if ( _ss_build ) 
-    _ssmat.reset(_ssmat_temp[0].rows(), _ssmat_temp[0].cols(), 0.0);
+    _ssmat.reset(_ssmat_temp[0].rows(), _ssmat_temp[0].cols(), zero(S()));
   //std::cout << "netering matrix build finish_sample3" << std::endl;
 
   // mpi reduce 
   formic::mpi::reduce(&_hmat_temp[0].at(0,0), &_hmat.at(0,0), _hmat_temp[0].size(), MPI::SUM);
   formic::mpi::reduce(&_smat_temp[0].at(0,0), &_smat.at(0,0), _smat_temp[0].size(), MPI::SUM);
-  if ( _ss_build ) 
+  if ( _ss_build )
     formic::mpi::reduce(&_ssmat_temp[0].at(0,0), &_ssmat.at(0,0), _ssmat_temp[0].size(), MPI::SUM);   
 
   //std::cout << "netering matrix build finish_sample4" << std::endl;
@@ -272,10 +277,10 @@ void cqmc::engine::HamOvlpBuilderHD::finish_sample(const double total_weight)
   //std::cout << "netering matrix build finish_sample4.5" << std::endl;
   // clear temporary matrices 
   for (int ip = 0; ip < NumThreads; ip++) {
-    _hmat_temp[ip].reset(_hmat.rows(), _hmat.cols(), 0.0);
-    _smat_temp[ip].reset(_smat.rows(), _smat.cols(), 0.0);
+    _hmat_temp[ip].reset(_hmat.rows(), _hmat.cols(), zero(S()));
+    _smat_temp[ip].reset(_smat.rows(), _smat.cols(), zero(S()));
       if ( _ss_build ) 
-       _ssmat_temp[ip].reset(_ssmat.rows(), _ssmat.cols(), 0.0);
+       _ssmat_temp[ip].reset(_ssmat.rows(), _ssmat.cols(), zero(S()));
   }
 
   //std::cout << "netering matrix build finish_sample5" << std::endl;
@@ -299,7 +304,8 @@ void cqmc::engine::HamOvlpBuilderHD::finish_sample(const double total_weight)
 //
 //
 /////////////////////////////////////////////////////////////////////////////////////////////
-void cqmc::engine::HamOvlpBuilderHD::MatrixBuild(std::ostream & output)
+template<class S>
+void cqmc::engine::HamOvlpBuilderHD<S>::MatrixBuild(std::ostream & output)
 {
 
   // get rank number and number of ranks 
@@ -309,7 +315,7 @@ void cqmc::engine::HamOvlpBuilderHD::MatrixBuild(std::ostream & output)
   //MPI_Comm_size(MPI_COMM_WORLD, & num_rank);
 
   // before computing the matrix, first combine bare derivative ratio and local energy derivative with respect to harmonic davidson shift 
-  formic::Matrix<double> _hle_der;
+  formic::Matrix<S> _hle_der;
   if ( !_ground_state ) {
     _hle_der = _hd_shift * _der_rat - _le_der;
   }
@@ -346,62 +352,62 @@ void cqmc::engine::HamOvlpBuilderHD::MatrixBuild(std::ostream & output)
   //const int incre = round(100 / _percentage);
 
   // initialize zero matrices
-  _hmat.reset(M, M, 0.0);
-  _smat.reset(M, M, 0.0);
+  _hmat.reset(M, M, zero(S()));
+  _smat.reset(M, M, zero(S()));
   
   // if doing variance corrected calculation, need to build the normal linear method overlap matrix 
   if ( _variance_correct )
-    _lsmat.reset(M, M, 0.0);
+    _lsmat.reset(M, M, zero(S()));
 
   // if requested, also initialize the S^2 matrix 
   if ( _ss_build ) 
-    _ssmat.reset(M, M, 0.0);
+    _ssmat.reset(M, M, zero(S()));
 
-  formic::Matrix<double> _hmat_temp(M, M, 0.0);
-  formic::Matrix<double> _smat_temp(M, M, 0.0);
-  formic::Matrix<double> _ssmat_temp(M, M, 0.0);
-  formic::Matrix<double> _lsmat_temp(M, M, 0.0);
+  formic::Matrix<double> _hmat_temp(M, M, zero(S()));
+  formic::Matrix<double> _smat_temp(M, M, zero(S()));
+  formic::Matrix<double> _ssmat_temp(M, M, zero(S()));
+  formic::Matrix<double> _lsmat_temp(M, M, zero(S()));
 
   // call blas level 3 routine to build the matrix
   if ( !_ground_state ) {
     // build the matrix via dgemm
-    formic::dgemm('T', 'N', M, M, N, 1.0, &_der_rat.at(0,0), N, &_hle_der.at(0,0), N, 0.0, &_hmat_temp.at(0,0), M);
-    formic::dgemm('T', 'N', M, M, N, 1.0, &_hle_der.at(0,0), N, &_hle_der.at(0,0), N, 0.0, &_smat_temp.at(0,0), M);
+    formic::xgemm('T', 'N', M, M, N, unity(S()), &_der_rat.at(0,0), N, &_hle_der.at(0,0), N, zero(S()), &_hmat_temp.at(0,0), M);
+    formic::xgemm('T', 'N', M, M, N, unity(S()), &_hle_der.at(0,0), N, &_hle_der.at(0,0), N, zero(S()), &_smat_temp.at(0,0), M);
 
     // if doing variance correct calculation, build normal linear method's overlap matrix 
     if ( _variance_correct ) 
-      formic::dgemm('T', 'N', M, M, N, 1.0, &_der_rat.at(0,0), N, &_der_rat.at(0,0), N, 0.0, &_lsmat_temp.at(0,0), M);
+      formic::xgemm('T', 'N', M, M, N, unity(S()), &_der_rat.at(0,0), N, &_der_rat.at(0,0), N, zero(S()), &_lsmat_temp.at(0,0), M);
 
     // undo the changes to derivative vectors 
     for (int i = 0; i < N; i++) {
-      _der_rat.scale_row_by(i, 1.0/std::sqrt(_vgs.at(i) * _weight.at(i)));
+      _der_rat.scale_row_by(i, 1.0/std::sqrt(real(_vgs.at(i) * _weight.at(i))));
     }
   }
   
   else {
     // build the matrix via dgemm
-    formic::dgemm('T', 'N', M, M, N, 1.0, &_der_rat.at(0,0), N, &_le_der.at(0,0), N, 0.0, &_hmat_temp.at(0,0), M);
-    formic::dgemm('T', 'N', M, M, N, 1.0, &_der_rat.at(0,0), N, &_der_rat.at(0,0), N, 0.0, &_smat_temp.at(0,0), M);
+    formic::xgemm('T', 'N', M, M, N, unity(S()), &_der_rat.at(0,0), N, &_le_der.at(0,0), N, zero(S()), &_hmat_temp.at(0,0), M);
+    formic::xgemm('T', 'N', M, M, N, unity(S()), &_der_rat.at(0,0), N, &_der_rat.at(0,0), N, zero(S()), &_smat_temp.at(0,0), M);
 
     // if requested, also build the S^2 matrix 
     if ( _ss_build )
-      formic::dgemm('T', 'N', M, M, N, 1.0, &_der_rat.at(0,0), N, &_ls_der.at(0,0), N, 0.0, &_ssmat_temp.at(0,0), M);
+      formic::xgemm('T', 'N', M, M, N, unity(S()), &_der_rat.at(0,0), N, &_ls_der.at(0,0), N, zero(S()), &_ssmat_temp.at(0,0), M);
 
     // undo the changes to derivative vectors 
     for (int i = 0; i < N; i++) {
-      _der_rat.scale_row_by(i, 1.0/std::sqrt(_vgs.at(i) * _weight.at(i)));
-      _le_der.scale_row_by(i, 1.0/std::sqrt(_vgs.at(i) * _weight.at(i)));
+      _der_rat.scale_row_by(i, 1.0/std::sqrt(real(_vgs.at(i) * _weight.at(i))));
+      _le_der.scale_row_by(i, 1.0/std::sqrt(real(_vgs.at(i) * _weight.at(i))));
 
       // if requested, also undo S^2 derivative vectors 
       if ( _ss_build ) 
-        _ls_der.scale_row_by(i, 1.0/std::sqrt(_vgs.at(i) * _weight.at(i)));
+        _ls_der.scale_row_by(i, 1.0/std::sqrt(real(_vgs.at(i) * _weight.at(i))));
     }
   }
 
   // finalize the computing process(this may include conmunications between different processes)
   // first compute the total weight and average of |value/guiding|^2
-  _total_weight = std::accumulate(_weight.begin(), _weight.end(), 0.0);
-  _vgsa = 0.0;
+  _total_weight = std::accumulate(_weight.begin(), _weight.end(), zero(S()));
+  _vgsa = zero(S());
 
   for (int i = 0; i < _vgs.size(); i++) {
     _vgsa += _weight.at(i) * _vgs.at(i);
@@ -464,7 +470,8 @@ void cqmc::engine::HamOvlpBuilderHD::MatrixBuild(std::ostream & output)
 //
 // NOTE:After calling this function, derivative vectors have been changed
 /////////////////////////////////////////////////////////////////////////////////////////////
-double cqmc::engine::HamOvlpBuilderHD::MatrixAbsorb()
+template<class S>
+S cqmc::engine::HamOvlpBuilderHD<S>::MatrixAbsorb()
 {
   // get the number of total samples on each process 
   const int Ns = _der_rat.rows();
@@ -479,13 +486,13 @@ double cqmc::engine::HamOvlpBuilderHD::MatrixAbsorb()
   }
 
   // evaluate average of |value/guiding|^2 value and total weight 
-  _total_weight = std::accumulate(_weight.begin(), _weight.end(), 0.0);
-  double _total_weight_appro = 0.0;
+  _total_weight = std::accumulate(_weight.begin(), _weight.end(), zero(S()));
+  S _total_weight_appro = zero(S());
   for (int i = 0; i < Ns_appro; i++) 
     _total_weight_appro += _weight.at(i);
 
-  _vgsa = 0.0;
-  double _vgsa_appro = 0.0;
+  _vgsa = zero(S());
+  double _vgsa_appro = zero(S());
 
   for (int i = 0; i < _vgs.size(); i++) {
     _vgsa += _weight.at(i) * _vgs.at(i);
@@ -544,32 +551,34 @@ double cqmc::engine::HamOvlpBuilderHD::MatrixAbsorb()
 //
 //
 /////////////////////////////////////////////////////////////////////////////////////////////
-void cqmc::engine::HamOvlpBuilderHD::MatrixRecover()
+template<class S>
+void cqmc::engine::HamOvlpBuilderHD<S>::MatrixRecover()
 {
   // get the number of samples 
   const int Ns = _der_rat.rows();
 
   // divide |value/guiding|^2 and weight value out of derivative vectors 
   for (int i = 0; i < Ns; i++) {
-    _der_rat.scale_row_by(i, 1.0/std::sqrt(_vgs.at(i) * _weight.at(i)));
-    _le_der.scale_row_by(i, 1.0/std::sqrt(_vgs.at(i) * _weight.at(i)));
+    _der_rat.scale_row_by(i, 1.0/std::sqrt(real(_vgs.at(i) * _weight.at(i))));
+    _le_der.scale_row_by(i, 1.0/std::sqrt(real(_vgs.at(i) * _weight.at(i))));
   }
 
   // consider |value/guiding|^2 function 
-  _der_rat *= std::sqrt(_total_weight * _vgsa);
-  _le_der *= std::sqrt(_total_weight * _vgsa);
+  _der_rat *= std::sqrt(real(_total_weight * _vgsa));
+  _le_der *= std::sqrt(real(_total_weight * _vgsa));
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 /// \brief reset this object 
 ///
 /////////////////////////////////////////////////////////////////////////////////////////////
-void cqmc::engine::HamOvlpBuilderHD::reset() 
+template<class S>
+void cqmc::engine::HamOvlpBuilderHD<S>::reset() 
 {
   // clear matrices
-  _hmat.reset(0, 0, 0.0);
-  _smat.reset(0, 0, 0.0);
-  _ssmat.reset(0, 0, 0.0);
+  _hmat.reset(0, 0, zero(S()));
+  _smat.reset(0, 0, zero(S()));
+  _ssmat.reset(0, 0, zero(S()));
 }
 
 
@@ -580,7 +589,8 @@ void cqmc::engine::HamOvlpBuilderHD::reset()
 // \param[in]         deps     object decribing the variable dependencies
 // \param[in, out]    mat      the matrix to be converted
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-void cqmc::engine::HamOvlpBuilderHD::convert_to_ind_var_form(const formic::VarDeps * dep_ptr, formic::Matrix<double> & mat)
+template<class S>
+void cqmc::engine::HamOvlpBuilderHD<S>::convert_to_ind_var_form(const formic::VarDeps * dep_ptr, formic::Matrix<S> & mat)
 {
   // get expected initial matrix dimension
   const int n = 1 + dep_ptr -> n_tot();
@@ -593,7 +603,7 @@ void cqmc::engine::HamOvlpBuilderHD::convert_to_ind_var_form(const formic::VarDe
   const int m = 1 + dep_ptr -> n_ind();
 
   // combine derivatives down columns to get a m by n matrix
-  formic::Matrix<double> column_contracted(m, n, 0.0);
+  formic::Matrix<S> column_contracted(m, n, zero(S()));
   for (int i = 0; i < n; i++) {
     column_contracted.at(0,i) = mat.at(0,i);
     dep_ptr -> compute_ind_derivs(&mat.at(1,i), &column_contracted.at(1,i));
@@ -601,7 +611,7 @@ void cqmc::engine::HamOvlpBuilderHD::convert_to_ind_var_form(const formic::VarDe
 
   // transpose this matrix and then combine derivatives down columns to get the final m by m matrix
   column_contracted.tip();
-  formic::Matrix<double> final_mat(m, m, 0.0);
+  formic::Matrix<S> final_mat(m, m, zero(S()));
   for (int i = 0; i < m; i++) {
     final_mat.at(0,i) = column_contracted.at(0,i);
     dep_ptr -> compute_ind_derivs(&column_contracted.at(1,i), &final_mat.at(1,i));
@@ -618,7 +628,8 @@ void cqmc::engine::HamOvlpBuilderHD::convert_to_ind_var_form(const formic::VarDe
 //
 //
 ////////////////////////////////////////////////////////////////////////////////////
-void cqmc::engine::HamOvlpBuilderHD::d_inv_half_trans()
+template<class S>
+void cqmc::engine::HamOvlpBuilderHD<S>::d_inv_half_trans()
 {  
   // get rank number and number of ranks 
   int my_rank = formic::mpi::rank();
@@ -628,13 +639,13 @@ void cqmc::engine::HamOvlpBuilderHD::d_inv_half_trans()
 
   if (my_rank == 0) {
     // first get D^(-1/2) matrix 
-    formic::Matrix<double> d_inv_half(_hmat.rows(), _hmat.cols());
+    formic::Matrix<S> d_inv_half(_hmat.rows(), _hmat.cols());
     for (int i = 0; i < _hmat.rows(); i++) {
       for (int j = 0; j < _hmat.cols(); j++) {
         if (i != j) 
-          d_inv_half.at(i, j) = 0.0;
+          d_inv_half.at(i, j) = zero(S());
         else
-          d_inv_half.at(i, j) = (_smat.at(i, i) > 1.0e-5 ? (1.0 / std::sqrt(_smat.at(i, i))) : (1.0 / std::sqrt(1.0e-5)));
+          d_inv_half.at(i, j) = (real(_smat.at(i, i)) > 1.0e-5 ? (unity(S()) / std::sqrt(real(_smat.at(i, i)))) : (unity(S()) / std::sqrt(1.0e-5)));
       }  
     }
 
@@ -650,7 +661,8 @@ void cqmc::engine::HamOvlpBuilderHD::d_inv_half_trans()
 //
 //
 ////////////////////////////////////////////////////////////////////////////////////
-void cqmc::engine::HamOvlpBuilderHD::proj_ground_out_fder()
+template<class S>
+void cqmc::engine::HamOvlpBuilderHD<S>::proj_ground_out_fder()
 {
   // get rank number and number of ranks 
   int my_rank = formic::mpi::rank();
@@ -664,9 +676,9 @@ void cqmc::engine::HamOvlpBuilderHD::proj_ground_out_fder()
     const int n = _hmat.cols();
 
     // get temp matrix 
-    formic::Matrix<double> temp_h(m, n);
-    formic::Matrix<double> temp_s(m, n);
-    formic::Matrix<double> temp_ss(m, n);
+    formic::Matrix<S> temp_h(m, n);
+    formic::Matrix<S> temp_s(m, n);
+    formic::Matrix<S> temp_ss(m, n);
     for (int i = 0; i < m; i++) {
       for (int j = 0; j < n; j++) {
         if ( !( i == 0 && j == 0) ) {
@@ -677,7 +689,7 @@ void cqmc::engine::HamOvlpBuilderHD::proj_ground_out_fder()
 	}
 
 	else {
-	  temp_s.at(i, j) = 1.0;
+	  temp_s.at(i, j) = unity(S());
 	  temp_h.at(i, j) = _hmat.at(i, j);
 	  if ( _ss_build ) 
 	    temp_ss.at(i, j) = _ssmat.at(i, j);
@@ -702,7 +714,8 @@ void cqmc::engine::HamOvlpBuilderHD::proj_ground_out_fder()
 //
 //
 ////////////////////////////////////////////////////////////////////////////////////
-formic::Matrix<double> cqmc::engine::HamOvlpBuilderHD::ovlp_pseudo_inv(const double threshold, std::ostream & fout) 
+template<class S>
+formic::Matrix<S> cqmc::engine::HamOvlpBuilderHD<S>::ovlp_pseudo_inv(const double threshold, std::ostream & fout) 
 {
   
   // get rank number and number of ranks 
@@ -712,9 +725,9 @@ formic::Matrix<double> cqmc::engine::HamOvlpBuilderHD::ovlp_pseudo_inv(const dou
   //MPI_Comm_size(MPI_COMM_WORLD, & num_rank);
  
   // compute SVD on root process 
-  formic::Matrix<double> u;
-  formic::Matrix<double> vt;
-  formic::ColVec<double> sin_vals;
+  formic::Matrix<S> u;
+  formic::Matrix<S> vt;
+  formic::ColVec<S> sin_vals;
   if (my_rank == 0) {
     _smat.svd(u, sin_vals, vt);
 
@@ -727,12 +740,12 @@ formic::Matrix<double> cqmc::engine::HamOvlpBuilderHD::ovlp_pseudo_inv(const dou
 
     // compute and return inverse 
     for (int i = 0; i < vt.rows(); i++) {
-      double scaler = (sin_vals(i) > threshold ? 1.0 / sin_vals(i) : 0.0);
+      double scaler = (real(sin_vals(i)) > threshold ? unity(S()) / sin_vals(i) : zero(S()));
       vt.scale_row_by(i, scaler);
     }
 
   }
-  return vt.t() * u.t();
+  return vt.c() * u.c();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -741,77 +754,77 @@ formic::Matrix<double> cqmc::engine::HamOvlpBuilderHD::ovlp_pseudo_inv(const dou
 // 
 //
 /////////////////////////////////////////////////////////////////////////////////////////////
-void cqmc::engine::HamOvlpBuilderHD::derivative_analyze(std::ostream & fout)
-{
-  // get rank number and number of ranks 
-  int my_rank = formic::mpi::rank();
-  int num_rank = formic::mpi::size();
-  //MPI_Comm_rank(MPI_COMM_WORLD, & my_rank);
-  //MPI_Comm_size(MPI_COMM_WORLD, & num_rank);
-
-  // analyze derivative vectors on root process
-  if ( my_rank == 0 ) {
-    
-    // get a vector to store the square root of weight 
-    std::vector<double> _sqrt_weight;
-
-    // print out weight of each configuration
-    fout << boost::format("weight on each configuration is") << std::endl;
-    for (int i = 0; i < _weight.size(); i++) {
-      _sqrt_weight.push_back( std::sqrt(_weight.at(i)) );
-      fout << boost::format("%20.8e") % _sqrt_weight.at(i) << std::endl;
-    }
-
-    // for each row of derivative vector matrix, multiply it by weight to get the matrix <n|Psi^x>
-    for (int i = 0; i < _der_rat.rows(); i++) {
-      _der_rat.scale_row_by(i, _sqrt_weight.at(i));
-    }
-
-    // project ground state out of first derivative space 
-    for (int i = 1; i < _der_rat.cols(); i++) {
-      for (int j = 0; j < _der_rat.rows(); j++) {
-        _der_rat.at(j, i) -= _smat.at(i, 0) * _der_rat.at(j, 0);
-      }
-    }
-    this -> proj_ground_out_fder();
-
-    // normalize each derivative vector
-    for (int i = 0; i < _der_rat.cols(); i++) {
-      _der_rat.scale_col_by(i, 1.0/std::sqrt( _smat(i, i) ));
-    }
-
-    // print out the first column
-    fout << boost::format("new derivative vector matrix is") << std::endl;
-    for (int i = 0; i < _der_rat.cols(); i++) {
-      for (int j = 0; j < _der_rat.rows(); j++) {
-        fout << boost::format("%20.8e") % _der_rat.at(j, i) << std::endl;
-      }
-      fout << std::endl;
-    }
-  }
-}
+//void cqmc::engine::HamOvlpBuilderHD::derivative_analyze(std::ostream & fout)
+//{
+//  // get rank number and number of ranks 
+//  int my_rank = formic::mpi::rank();
+//  int num_rank = formic::mpi::size();
+//  //MPI_Comm_rank(MPI_COMM_WORLD, & my_rank);
+//  //MPI_Comm_size(MPI_COMM_WORLD, & num_rank);
+//
+//  // analyze derivative vectors on root process
+//  if ( my_rank == 0 ) {
+//    
+//    // get a vector to store the square root of weight 
+//    std::vector<double> _sqrt_weight;
+//
+//    // print out weight of each configuration
+//    fout << boost::format("weight on each configuration is") << std::endl;
+//    for (int i = 0; i < _weight.size(); i++) {
+//      _sqrt_weight.push_back( std::sqrt(_weight.at(i)) );
+//      fout << boost::format("%20.8e") % _sqrt_weight.at(i) << std::endl;
+//    }
+//
+//    // for each row of derivative vector matrix, multiply it by weight to get the matrix <n|Psi^x>
+//    for (int i = 0; i < _der_rat.rows(); i++) {
+//      _der_rat.scale_row_by(i, _sqrt_weight.at(i));
+//    }
+//
+//    // project ground state out of first derivative space 
+//    for (int i = 1; i < _der_rat.cols(); i++) {
+//      for (int j = 0; j < _der_rat.rows(); j++) {
+//        _der_rat.at(j, i) -= _smat.at(i, 0) * _der_rat.at(j, 0);
+//      }
+//    }
+//    this -> proj_ground_out_fder();
+//
+//    // normalize each derivative vector
+//    for (int i = 0; i < _der_rat.cols(); i++) {
+//      _der_rat.scale_col_by(i, 1.0/std::sqrt( _smat(i, i) ));
+//    }
+//
+//    // print out the first column
+//    fout << boost::format("new derivative vector matrix is") << std::endl;
+//    for (int i = 0; i < _der_rat.cols(); i++) {
+//      for (int j = 0; j < _der_rat.rows(); j++) {
+//        fout << boost::format("%20.8e") % _der_rat.at(j, i) << std::endl;
+//      }
+//      fout << std::endl;
+//    }
+//  }
+//}
 
 /// \brief returns total weight 
-double cqmc::engine::HamOvlpBuilderHD::total_weight() { return _total_weight; }
+template<class S> S cqmc::engine::HamOvlpBuilderHD<S>::total_weight() { return _total_weight; }
 
 /// \brief returns average of |value/guiding|^2 value 
-double cqmc::engine::HamOvlpBuilderHD::vgsa() { return _vgsa; }
+template<class S> S cqmc::engine::HamOvlpBuilderHD<S>::vgsa() { return _vgsa; }
 
 /// \brief returns the approximate derivative vectors
-formic::Matrix<double> & cqmc::engine::HamOvlpBuilderHD::approximate_der_vec() { return _der_rat_appro; }
+template<class S> formic::Matrix<S> & cqmc::engine::HamOvlpBuilderHD<S>::approximate_der_vec() { return _der_rat_appro; }
 
 /// \brief returns the approximate energy derivatives
-formic::Matrix<double> & cqmc::engine::HamOvlpBuilderHD::approximate_le_der() { return _le_der_appro; }
+template<class S> formic::Matrix<S> & cqmc::engine::HamOvlpBuilderHD<S>::approximate_le_der() { return _le_der_appro; }
 
 /// \brief returns the hamiltonian matrix 
-formic::Matrix<double> & cqmc::engine::HamOvlpBuilderHD::ham() { return _hmat; }
+template<class S> formic::Matrix<S> & cqmc::engine::HamOvlpBuilderHD<S>::ham() { return _hmat; }
 
 /// \brief returns the overlap matrix 
-formic::Matrix<double> & cqmc::engine::HamOvlpBuilderHD::ovl() { return _smat; }
+template<class S> formic::Matrix<S> & cqmc::engine::HamOvlpBuilderHD<S>::ovl() { return _smat; }
 
 /// \brief returns the S^2 matrix 
-formic::Matrix<double> & cqmc::engine::HamOvlpBuilderHD::ssquare() { return _ssmat; }
+template<class S> formic::Matrix<S> & cqmc::engine::HamOvlpBuilderHD<S>::ssquare() { return _ssmat; }
 
 /// \brief returns the normal linear method's overlap matrix 
-formic::Matrix<double> & cqmc::engine::HamOvlpBuilderHD::lovl() { return _lsmat; }
+template<class S> formic::Matrix<S> & cqmc::engine::HamOvlpBuilderHD<S>::lovl() { return _lsmat; }
 

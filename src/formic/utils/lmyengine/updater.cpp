@@ -14,6 +14,7 @@
 //#include<mpi.h>
 
 #include<formic/utils/matrix.h>
+#include<formic/utils/zero_one.h>
 #include<formic/utils/mpi_interface.h>
 #include<formic/utils/lmyengine/updater.h>
 #include<formic/utils/lmyengine/matrix_builder.h>
@@ -30,16 +31,17 @@
 // \param[in]  userinp   user's input options and derivative vectors
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////
-cqmc::engine::HDLinMethodUpdater::HDLinMethodUpdater(formic::Matrix<double> & der_rat,
-                                                     formic::Matrix<double> & le_der, 
-                                                     const std::vector<double> & vgs,
-                                                     const std::vector<double> & weight,
-                                                     const std::vector<double> & shift_scale,
-                                                     const double omega,
-                                                     const double var_weight,
-                                                     const bool ground_state,
-                                                     const bool variance_correct,
-                                                     const bool build_lm_matrix)
+template<class S>
+cqmc::engine::HDLinMethodUpdater<S>::HDLinMethodUpdater(formic::Matrix<S> & der_rat,
+                                                        formic::Matrix<S> & le_der, 
+                                                        const std::vector<S> & vgs,
+                                                        const std::vector<S> & weight,
+                                                        const std::vector<double> & shift_scale,
+                                                        const double omega,
+                                                        const double var_weight,
+                                                        const bool ground_state,
+                                                        const bool variance_correct,
+                                                        const bool build_lm_matrix)
  :_der_rat(der_rat),
  _le_der(le_der),
  _vgs(vgs),
@@ -60,7 +62,8 @@ cqmc::engine::HDLinMethodUpdater::HDLinMethodUpdater(formic::Matrix<double> & de
 //
 //////////////////////////////////////////////////////////////////////////////////////////////
 
-void cqmc::engine::HDLinMethodUpdater::engine_update_build_matrix(const formic::VarDeps * dep_ptr,
+template<class S>
+void cqmc::engine::HDLinMethodUpdater<S>::engine_update_build_matrix(const formic::VarDeps * dep_ptr,
                                                                   const int lm_krylov_iter,
                                                                   const int lm_spam_inner_iter,
                                                                   const double lm_eigen_thresh,
@@ -93,7 +96,7 @@ void cqmc::engine::HDLinMethodUpdater::engine_update_build_matrix(const formic::
   //MPI_Comm_size(MPI_COMM_WORLD, & num_rank);
 
   // creates matrix builder 
-  boost::shared_ptr< cqmc::engine::HamOvlpBuilderHD > mbuilder( new cqmc::engine::HamOvlpBuilderHD(_der_rat, 
+  boost::shared_ptr< cqmc::engine::HamOvlpBuilderHD<S> > mbuilder( new cqmc::engine::HamOvlpBuilderHD(_der_rat, 
                                                                                                    _le_der, 
                                                                                                    _le_der, 
                                                                                                    _vgs, 
@@ -112,15 +115,15 @@ void cqmc::engine::HDLinMethodUpdater::engine_update_build_matrix(const formic::
   mbuilder -> MatrixBuild(output);
 
   // get the hamiltonian and overlap matrix 
-  formic::Matrix<double> & hamiltonian = mbuilder -> ham();
-  formic::Matrix<double> & overlap = mbuilder -> ovl();
+  formic::Matrix<S> & hamiltonian = mbuilder -> ham();
+  formic::Matrix<S> & overlap = mbuilder -> ovl();
 
   // if we want to correct the finite variance issue, get nomral linear method's overlap matrix 
-  formic::Matrix<double> & LMoverlap = mbuilder -> lovl();
+  formic::Matrix<S> & LMoverlap = mbuilder -> lovl();
 
   const bool print_mats = false;
 
-  boost::shared_ptr< cqmc::engine::EigenSolver > eigensolver(new cqmc::engine::DavidsonLMHD(dep_ptr,
+  boost::shared_ptr< cqmc::engine::EigenSolver<S> > eigensolver(new cqmc::engine::DavidsonLMHD(dep_ptr,
                                                                                             hamiltonian.cols(),
                                                                                             lm_krylov_iter,
                                                                                             lm_eigen_thresh,
@@ -190,9 +193,9 @@ void cqmc::engine::HDLinMethodUpdater::engine_update_build_matrix(const formic::
     eigensolver -> reset();
     eigensolver -> update_lm_shift(x, y);
     { 
-      formic::ColVec<double> temp(hamiltonian.cols());
+      formic::ColVec<S> temp(hamiltonian.cols());
       for (int j = 0; j < temp.size(); j++) 
-        temp.at(j) = ( j == 0 ? 1.0 : 0.0);
+        temp.at(j) = ( j == 0 ? unity(S()) : zero(S()));
       eigensolver -> add_krylov_vector(temp);
     }
 
@@ -255,66 +258,63 @@ void cqmc::engine::HDLinMethodUpdater::engine_update_build_matrix(const formic::
 //
 //////////////////////////////////////////////////////////////////////////////////////////////
 
-void cqmc::engine::HDLinMethodUpdater::engine_update_build_matrix(const formic::VarDeps * dep_ptr,
-                                                                  const int lm_krylov_iter,
-                                                                  const int lm_spam_inner_iter,
-                                                                  const double lm_eigen_thresh,
-                                                                  const double lm_min_S_eval,
-                                                                  const bool spam_use,
-                                                                  const bool var_deps_use,
-                                                                  const bool chase_lowest,
-                                                                  const bool chase_closest,
-                                                                  const bool print_matrix,
-                                                                  const double init_cost,
-                                                                  const double init_variance,
-                                                                  const double lm_max_e_change,
-                                                                  const double lm_ham_shift_i,
-                                                                  const double lm_ham_shift_s,
-                                                                  const double _omega,
-                                                                  const double lm_max_update_abs,
-                                                                  formic::Matrix<double> & hh,
-                                                                  formic::Matrix<double> & ss,
-                                                                  std::vector<double> & vf_var,
-                                                                  std::vector<bool> & good_solve,
-                                                                  std::vector<int> & shift_solved,
-                                                                  std::ostream & output)
+template<class S>
+void cqmc::engine::HDLinMethodUpdater<S>::engine_update_build_matrix(const formic::VarDeps * dep_ptr,
+                                                                     const int lm_krylov_iter,
+                                                                     const int lm_spam_inner_iter,
+                                                                     const double lm_eigen_thresh,
+                                                                     const double lm_min_S_eval,
+                                                                     const bool spam_use,
+                                                                     const bool var_deps_use,
+                                                                     const bool chase_lowest,
+                                                                     const bool chase_closest,
+                                                                     const bool print_matrix,
+                                                                     const double init_cost,
+                                                                     const double init_variance,
+                                                                     const double lm_max_e_change,
+                                                                     const double lm_ham_shift_i,
+                                                                     const double lm_ham_shift_s,
+                                                                     const double _omega,
+                                                                     const double lm_max_update_abs,
+                                                                     formic::Matrix<S> & hh,
+                                                                     formic::Matrix<S> & ss,
+                                                                     std::vector<double> & vf_var,
+                                                                     std::vector<bool> & good_solve,
+                                                                     std::vector<int> & shift_solved,
+                                                                     std::ostream & output)
 
 {
 
   // get rank number and number of ranks 
   int my_rank = formic::mpi::rank();
   int num_rank = formic::mpi::size();
-  //int my_rank; 
-  //int num_rank;
-  //MPI_Comm_rank(MPI_COMM_WORLD, & my_rank);
-  //MPI_Comm_size(MPI_COMM_WORLD, & num_rank);
 
   const bool print_mats = false;
 
-  boost::shared_ptr< cqmc::engine::EigenSolver > eigensolver(new cqmc::engine::DavidsonLMHD(dep_ptr,
-                                                                                            hh.cols(),
-                                                                                            lm_krylov_iter,
-                                                                                            lm_eigen_thresh,
-                                                                                            lm_min_S_eval,
-                                                                                            var_deps_use,
-                                                                                            chase_lowest,
-                                                                                            chase_closest,
-                                                                                            _ground_state,
-                                                                                            _variance_correct,
-                                                                                            _build_lm_matrix,
-                                                                                            vf_var,
-                                                                                            init_cost,
-                                                                                            init_variance,
-                                                                                            _omega,
-                                                                                            _var_weight,
-                                                                                            lm_max_e_change,
-                                                                                            0.0,
-                                                                                            0.0,
-                                                                                            _der_rat,
-                                                                                            _le_der,
-                                                                                            hh,
-                                                                                            ss,
-                                                                                            ss));
+  boost::shared_ptr< cqmc::engine::EigenSolver<S> > eigensolver(new cqmc::engine::DavidsonLMHD(dep_ptr,
+                                                                                               hh.cols(),
+                                                                                               lm_krylov_iter,
+                                                                                               lm_eigen_thresh,
+                                                                                               lm_min_S_eval,
+                                                                                               var_deps_use,
+                                                                                               chase_lowest,
+                                                                                               chase_closest,
+                                                                                               _ground_state,
+                                                                                               _variance_correct,
+                                                                                               _build_lm_matrix,
+                                                                                               vf_var,
+                                                                                               init_cost,
+                                                                                               init_variance,
+                                                                                               _omega,
+                                                                                               _var_weight,
+                                                                                               lm_max_e_change,
+                                                                                               0.0,
+                                                                                               0.0,
+                                                                                               _der_rat,
+                                                                                               _le_der,
+                                                                                               hh,
+                                                                                               ss,
+                                                                                               ss));
 
   // set a flag to tell whether previous solve is good or not 
   bool previous_solve = false;
@@ -338,9 +338,9 @@ void cqmc::engine::HDLinMethodUpdater::engine_update_build_matrix(const formic::
     eigensolver -> reset();
     eigensolver -> update_lm_shift(x, y);
     { 
-      formic::ColVec<double> temp(hh.cols());
+      formic::ColVec<S> temp(hh.cols());
       for (int j = 0; j < temp.size(); j++) 
-        temp.at(j) = ( j == 0 ? 1.0 : 0.0);
+        temp.at(j) = ( j == 0 ? unity(S()) : zero(S()));
       eigensolver -> add_krylov_vector(temp);
     }
 
@@ -395,36 +395,33 @@ void cqmc::engine::HDLinMethodUpdater::engine_update_build_matrix(const formic::
 //
 //////////////////////////////////////////////////////////////////////////////////////////////
 
-void cqmc::engine::HDLinMethodUpdater::engine_update_no_matrix(const formic::VarDeps * dep_ptr,
-                                                               const int lm_krylov_iter,
-                                                               const int lm_spam_inner_iter,
-                                                               const double lm_eigen_thresh,
-                                                               const double lm_min_S_eval,
-                                                               const bool spam_use,
-                                                               const bool var_deps_use,
-                                                               const bool chase_lowest,
-                                                               const bool chase_closest,
-                                                               const bool print_matrix,
-                                                               const double init_cost,
-                                                               const double lm_max_e_change,
-                                                               const double lm_ham_shift_i,
-                                                               const double lm_ham_shift_s,
-                                                               const double _omega,
-                                                               const double lm_max_update_abs,
-                                                               std::vector<double> & vf_var,
-                                                               std::vector<bool> & good_solve,
-                                                               std::vector<int> & shift_solved,
-                                                               std::ostream & output)
+template<class S>
+void cqmc::engine::HDLinMethodUpdater<S>::engine_update_no_matrix(const formic::VarDeps * dep_ptr,
+                                                                  const int lm_krylov_iter,
+                                                                  const int lm_spam_inner_iter,
+                                                                  const double lm_eigen_thresh,
+                                                                  const double lm_min_S_eval,
+                                                                  const bool spam_use,
+                                                                  const bool var_deps_use,
+                                                                  const bool chase_lowest,
+                                                                  const bool chase_closest,
+                                                                  const bool print_matrix,
+                                                                  const double init_cost,
+                                                                  const double lm_max_e_change,
+                                                                  const double lm_ham_shift_i,
+                                                                  const double lm_ham_shift_s,
+                                                                  const double _omega,
+                                                                  const double lm_max_update_abs,
+                                                                  std::vector<double> & vf_var,
+                                                                  std::vector<bool> & good_solve,
+                                                                  std::vector<int> & shift_solved,
+                                                                  std::ostream & output)
 
 {
 
   // get rank number and number of ranks 
   int my_rank = formic::mpi::rank();
   int num_rank = formic::mpi::size();
-  //int my_rank; 
-  //int num_rank;
-  //MPI_Comm_rank(MPI_COMM_WORLD, & my_rank);
-  //MPI_Comm_size(MPI_COMM_WORLD, & num_rank);
 
   // get the number of total variables + 1
   const int Ntot = (var_deps_use ? (dep_ptr -> n_tot() + 1) : _der_rat.cols());
@@ -440,20 +437,20 @@ void cqmc::engine::HDLinMethodUpdater::engine_update_no_matrix(const formic::Var
 
   
   // creates matrix builder 
-  boost::shared_ptr< cqmc::engine::HamOvlpBuilderHD > mbuilder( new cqmc::engine::HamOvlpBuilderHD(_der_rat, 
-                                                                                                   _le_der, 
-                                                                                                   _le_der, 
-                                                                                                   _vgs, 
-                                                                                                   _weight, 
-                                                                                                   _omega, 
-                                                                                                   0,
-                                                                                                   1, 
-                                                                                                   false, 
-                                                                                                   _ground_state, 
-                                                                                                   false,
-                                                                                                   _build_lm_matrix,
-                                                                                                   false, 
-                                                                                                   print_matrix));
+  boost::shared_ptr< cqmc::engine::HamOvlpBuilderHD<S> > mbuilder( new cqmc::engine::HamOvlpBuilderHD(_der_rat, 
+                                                                                                      _le_der, 
+                                                                                                      _le_der, 
+                                                                                                      _vgs, 
+                                                                                                      _weight, 
+                                                                                                      _omega, 
+                                                                                                      0,
+                                                                                                      1, 
+                                                                                                      false, 
+                                                                                                      _ground_state, 
+                                                                                                      false,
+                                                                                                      _build_lm_matrix,
+                                                                                                      false, 
+                                                                                                      print_matrix));
   
 
 
@@ -463,30 +460,30 @@ void cqmc::engine::HDLinMethodUpdater::engine_update_no_matrix(const formic::Var
 		
 
   // create eigen solver
-  boost::shared_ptr< cqmc::engine::EigenSolver > eigensolver(new cqmc::engine::DavidsonLMHD(dep_ptr,
-                                                                                            _der_rat.cols(),
-                                                                                            lm_krylov_iter,
-                                                                                            lm_eigen_thresh,
-                                                                                            lm_min_S_eval,
-                                                                                            var_deps_use,
-                                                                                            chase_lowest,
-                                                                                            chase_closest,
-                                                                                            _ground_state,
-                                                                                            false,
-                                                                                            _build_lm_matrix,
-                                                                                            vf_var,
-                                                                                            init_cost,
-                                                                                            0.0,
-                                                                                            _omega,
-                                                                                            0.0,
-                                                                                            lm_max_e_change,
-                                                                                            mbuilder -> total_weight(),
-                                                                                            mbuilder -> vgsa(),
-                                                                                            _der_rat,
-                                                                                            _le_der,
-                                                                                            _der_rat,
-                                                                                            _le_der,
-                                                                                            _le_der));
+  boost::shared_ptr< cqmc::engine::EigenSolver<S> > eigensolver(new cqmc::engine::DavidsonLMHD(dep_ptr,
+                                                                                               _der_rat.cols(),
+                                                                                               lm_krylov_iter,
+                                                                                               lm_eigen_thresh,
+                                                                                               lm_min_S_eval,
+                                                                                               var_deps_use,
+                                                                                               chase_lowest,
+                                                                                               chase_closest,
+                                                                                               _ground_state,
+                                                                                               false,
+                                                                                               _build_lm_matrix,
+                                                                                               vf_var,
+                                                                                               init_cost,
+                                                                                               0.0,
+                                                                                               _omega,
+                                                                                               0.0,
+                                                                                               lm_max_e_change,
+                                                                                               mbuilder -> total_weight(),
+                                                                                               mbuilder -> vgsa(),
+                                                                                               _der_rat,
+                                                                                               _le_der,
+                                                                                               _der_rat,
+                                                                                               _le_der,
+                                                                                               _le_der));
 
 
   // set a flag to tell whether previous solve is good or not 
@@ -518,9 +515,9 @@ void cqmc::engine::HDLinMethodUpdater::engine_update_no_matrix(const formic::Var
     // if previous solve fails(imaginary energy) or this is the first shift, add initial guess to the solver(krylov subspace)
     if ( !previous_solve ) { 
       const int m = _der_rat.cols();
-      formic::ColVec<double> temp(m);
+      formic::ColVec<S> temp(m);
       for (int j = 0; j < temp.size(); j++) 
-        temp.at(j) = ( j == 0 ? 1.0 : 0.0);
+        temp.at(j) = ( j == 0 ? unity(S()) : zero(S()));
       eigensolver -> add_krylov_vector(temp);
     }
 
@@ -579,56 +576,53 @@ void cqmc::engine::HDLinMethodUpdater::engine_update_no_matrix(const formic::Var
 //
 //////////////////////////////////////////////////////////////////////////////////////////////
 
-void cqmc::engine::HDLinMethodUpdater::engine_update_spam(const formic::VarDeps * dep_ptr,
-                                                          const int lm_krylov_iter,
-                                                          const int lm_spam_inner_iter,
-                                                          const int appro_degree,
-                                                          const double lm_eigen_thresh,
-                                                          const double lm_min_S_eval,
-                                                          const bool spam_use,
-                                                          const bool var_deps_use,
-                                                          const bool chase_lowest,
-                                                          const bool chase_closest,
-                                                          const bool print_matrix,
-                                                          const double init_cost,
-                                                          const double lm_max_e_change,
-                                                          const double lm_ham_shift_i,
-                                                          const double lm_ham_shift_s,
-                                                          const double _omega,
-                                                          const double lm_max_update_abs,
-                                                          std::vector<double> & vf_var,
-                                                          std::vector<bool> & good_solve,
-                                                          std::vector<int> & shift_solved,
-                                                          std::ostream & output)
+template<class S>
+void cqmc::engine::HDLinMethodUpdater<S>::engine_update_spam(const formic::VarDeps * dep_ptr,
+                                                             const int lm_krylov_iter,
+                                                             const int lm_spam_inner_iter,
+                                                             const int appro_degree,
+                                                             const double lm_eigen_thresh,
+                                                             const double lm_min_S_eval,
+                                                             const bool spam_use,
+                                                             const bool var_deps_use,
+                                                             const bool chase_lowest,
+                                                             const bool chase_closest,
+                                                             const bool print_matrix,
+                                                             const double init_cost,
+                                                             const double lm_max_e_change,
+                                                             const double lm_ham_shift_i,
+                                                             const double lm_ham_shift_s,
+                                                             const double _omega,
+                                                             const double lm_max_update_abs,
+                                                             std::vector<double> & vf_var,
+                                                             std::vector<bool> & good_solve,
+                                                             std::vector<int> & shift_solved,
+                                                             std::ostream & output)
 
 {
 
   // get rank number and number of ranks 
   int my_rank = formic::mpi::rank();
   int num_rank = formic::mpi::size();
-  //int my_rank; 
-  //int num_rank;
-  //MPI_Comm_rank(MPI_COMM_WORLD, & my_rank);
-  //MPI_Comm_size(MPI_COMM_WORLD, & num_rank);
 
   // get the number of total variables + 1 
   const int Ntot = ( var_deps_use ? (dep_ptr -> n_tot() + 1) : _der_rat.cols());
 
   // creates matrix builder 
-  boost::shared_ptr< cqmc::engine::HamOvlpBuilderHD > mbuilder( new cqmc::engine::HamOvlpBuilderHD(_der_rat, 
-                                                                                                   _le_der, 
-                                                                                                   _le_der, 
-                                                                                                   _vgs, 
-                                                                                                   _weight, 
-                                                                                                   _omega, 
-                                                                                                   0,
-                                                                                                   appro_degree, 
-                                                                                                   spam_use, 
-                                                                                                   _ground_state, 
-                                                                                                   false,
-                                                                                                   _build_lm_matrix,
-                                                                                                   false, 
-                                                                                                   print_matrix));
+  boost::shared_ptr< cqmc::engine::HamOvlpBuilderHD<S> > mbuilder( new cqmc::engine::HamOvlpBuilderHD(_der_rat, 
+                                                                                                      _le_der, 
+                                                                                                      _le_der, 
+                                                                                                      _vgs, 
+                                                                                                      _weight, 
+                                                                                                      _omega, 
+                                                                                                      0,
+                                                                                                      appro_degree, 
+                                                                                                      spam_use, 
+                                                                                                      _ground_state, 
+                                                                                                      false,
+                                                                                                      _build_lm_matrix,
+                                                                                                      false, 
+                                                                                                      print_matrix));
   
 
 
@@ -638,29 +632,29 @@ void cqmc::engine::HDLinMethodUpdater::engine_update_spam(const formic::VarDeps 
 		
 
   // create eigensolver
-  boost::shared_ptr< cqmc::engine::EigenSolver > eigensolver(new cqmc::engine::SpamLMHD(dep_ptr, 
-                                                                                        _der_rat.cols(),
-                                                                                        lm_krylov_iter,
-                                                                                        lm_spam_inner_iter, 
-                                                                                        appro_degree,
-                                                                                        false,
-                                                                                        lm_eigen_thresh,
-                                                                                        lm_min_S_eval,
-                                                                                        prefactor,
-                                                                                        var_deps_use,
-                                                                                        chase_lowest,
-                                                                                        chase_closest,
-                                                                                        _ground_state,
-                                                                                        vf_var,
-                                                                                        init_cost,
-                                                                                        _omega,
-                                                                                        lm_max_e_change,
-                                                                                        mbuilder -> total_weight(),
-                                                                                        mbuilder -> vgsa(),
-                                                                                        _der_rat,
-                                                                                        _le_der,
-                                                                                        mbuilder -> approximate_der_vec(),
-                                                                                        mbuilder -> approximate_le_der()));
+  boost::shared_ptr< cqmc::engine::EigenSolver<S> > eigensolver(new cqmc::engine::SpamLMHD(dep_ptr, 
+                                                                                           _der_rat.cols(),
+                                                                                           lm_krylov_iter,
+                                                                                           lm_spam_inner_iter, 
+                                                                                           appro_degree,
+                                                                                           false,
+                                                                                           lm_eigen_thresh,
+                                                                                           lm_min_S_eval,
+                                                                                           prefactor,
+                                                                                           var_deps_use,
+                                                                                           chase_lowest,
+                                                                                           chase_closest,
+                                                                                           _ground_state,
+                                                                                           vf_var,
+                                                                                           init_cost,
+                                                                                           _omega,
+                                                                                           lm_max_e_change,
+                                                                                           mbuilder -> total_weight(),
+                                                                                           mbuilder -> vgsa(),
+                                                                                           _der_rat,
+                                                                                           _le_der,
+                                                                                           mbuilder -> approximate_der_vec(),
+                                                                                           mbuilder -> approximate_le_der()));
 
 
 
@@ -692,9 +686,9 @@ void cqmc::engine::HDLinMethodUpdater::engine_update_spam(const formic::VarDeps 
     // if previous solve fails(imaginary energy) or this is the first shift, add initial guess to the solver(krylov subspace)
     if ( !previous_solve ) { 
       const int m = _der_rat.cols();
-      formic::Matrix<double> temp(m, 1);
+      formic::Matrix<S> temp(m, 1);
       for (int j = 0; j < m; j++) 
-        temp.at(j, 0) = ( j == 0 ? 1.0 : 0.0);
+        temp.at(j, 0) = ( j == 0 ? unity(S()) : zero(S()));
       eigensolver -> add_krylov_vectors_outer(temp);
     }
 
@@ -727,7 +721,6 @@ void cqmc::engine::HDLinMethodUpdater::engine_update_spam(const formic::VarDeps 
 
     
     // broadcast solve results to all processes
-    //MPI_Bcast(&good_solve, 1, MPI::BOOL, 0, MPI_COMM_WORLD);
     formic::mpi::bcast(&previous_solve, 1);
     
     // if the previous solve fails(imaginary energy gained), reset eigensolver 

@@ -34,7 +34,8 @@
 //
 //////////////////////////////////////////////////////////////////////////////////////////////////
 
-void cqmc::engine::DavidsonLMHD::solve_subspace_nonsymmetric(const bool outer) 
+template<class S>
+void cqmc::engine::DavidsonLMHD<S>::solve_subspace_nonsymmetric(const bool outer) 
 {
 
   // get rank number and number of ranks 
@@ -51,8 +52,8 @@ void cqmc::engine::DavidsonLMHD::solve_subspace_nonsymmetric(const bool outer)
   const int m = _nkry;
 
   //create vectors and matrices used in svd routine
-  formic::Matrix<double> u, v, vt;
-  formic::ColVec<double> sin_vals;
+  formic::Matrix<S> u, v, vt;
+  formic::ColVec<S> sin_vals;
   int truncate_index;
 
   // make sure the subspace matrix is not empty
@@ -62,12 +63,12 @@ void cqmc::engine::DavidsonLMHD::solve_subspace_nonsymmetric(const bool outer)
   //perform svd to subspace overlap matrix 
   _subS.svd(u, sin_vals, vt);
   v = vt.clone();
-  v.tip();
+  v.cip();
 
   //record the smallest singular value of subspace overlap matrix
-  _smallest_sin_value = std::abs(sin_vals.at(0));
+  _smallest_sin_value = std::abs(real(sin_vals.at(0)));
   for(int i = 0; i < m; i++){
-    _smallest_sin_value = std::min(_smallest_sin_value, std::abs(sin_vals(i)));
+    _smallest_sin_value = std::min(_smallest_sin_value, std::abs(real(sin_vals(i))));
     truncate_index = i;
 
     //check if singular value is smaller that the singular value threshold
@@ -87,20 +88,20 @@ void cqmc::engine::DavidsonLMHD::solve_subspace_nonsymmetric(const bool outer)
   sin_vals.conservativeResize(truncate_index);
 
   //convert the truncated singular value vector to a truncated_index * truncated_index diagonal matrix
-  formic::Matrix<double> trun_sin_val_matrix(truncate_index, truncate_index, 0.0);
+  formic::Matrix<S> trun_sin_val_matrix(truncate_index, truncate_index, zero(S()));
   for (int i = 0; i < truncate_index; i++)
     trun_sin_val_matrix.at(i,i) = sin_vals.at(i);
 
   //calculate the inverse of this matrix
   for(int i = 0; i < truncate_index; i++){
     for(int j = 0; j < truncate_index; j++){
-      trun_sin_val_matrix.at(i, j) = (trun_sin_val_matrix.at(i, j) == 0.0 ? trun_sin_val_matrix.at(i, j) : 1.0 / trun_sin_val_matrix.at(i, j));
+      trun_sin_val_matrix.at(i, j) = (trun_sin_val_matrix.at(i, j) == zero(S()) ? trun_sin_val_matrix.at(i, j) : unity(S()) / trun_sin_val_matrix.at(i, j));
     }
   }
 
   //calculate matrix S_trun^-1 * U^-1 * H * V
-  formic::Matrix<double> new_sub_H(truncate_index, truncate_index, 0.0); 
-  new_sub_H = trun_sin_val_matrix * u.t() * _subH * v;
+  formic::Matrix<S> new_sub_H(truncate_index, truncate_index, zero(S())); 
+  new_sub_H = trun_sin_val_matrix * u.c() * _subH * v;
 
   //solve this standard eigenvalue problem ( new_H * y = lambda * y, y = V^T * x, x is the original eigenvector)
   formic::ColVec<std::complex<double> > e_evals;
@@ -142,22 +143,26 @@ void cqmc::engine::DavidsonLMHD::solve_subspace_nonsymmetric(const bool outer)
 
     // record the eigenvector y 
     _wv4 = e_evecs.col_as_vec(selected);
+    formic::ColVec<S> _wv4_dup(_wv4.size(), zero(S()));
+    for (int i = 0; i < _wv4.size(); i++) 
+      _wv4_dup.at(i) = _wv4.at(i) * unity(S());
 
     // convert y to x 
     _wv5.reset(m);
+
     // convert v to complex form to make sure that all quantities in dgemm call are of the same type
-    formic::Matrix<std::complex<double> > v_complex(v.rows(), v.cols(), complex_zero);
-    for (int i = 0; i < v_complex.rows(); i++) {
-      for (int j = 0; j < v_complex.cols(); j++) {
-        v_complex.at(i,j) = std::complex<double>(v.at(i,j), 0.0);
-      }
-    }
-    formic::xgemm('N', 'N', m, 1, truncate_index, complex_one, &v_complex.at(0,0), m, &_wv4.at(0), truncate_index, complex_zero, &_wv5.at(0), m);
+    //formic::Matrix<std::complex<double> > v_complex(v.rows(), v.cols(), complex_zero);
+    //for (int i = 0; i < v_complex.rows(); i++) {
+    //  for (int j = 0; j < v_complex.cols(); j++) {
+    //    v_complex.at(i,j) = std::complex<double>(v.at(i,j), 0.0);
+    //  }
+    //}
+    formic::xgemm('N', 'N', m, 1, truncate_index, unity(S()), &v.at(0,0), m, &_wv4_dup.at(0), truncate_index, zero(S()), &_wv5.at(0), m);
 			
     // take real part of the vector x, put that into eigenvector 
     _sub_evec.reset(m);
     for (int i = 0; i < m; i++) {
-      _sub_evec.at(i) = _wv5.at(i).real();
+      _sub_evec.at(i) = _wv5.at(i);
     }
   }
 
@@ -190,22 +195,25 @@ void cqmc::engine::DavidsonLMHD::solve_subspace_nonsymmetric(const bool outer)
 
     // record the eigenvector y
     _wv4 = e_evecs.col_as_vec(selected);
+    formic::ColVec<S> _wv4_dup(_wv4.size(), zero(S()));
+    for (int i = 0; i < _wv4.size(); i++) 
+      _wv4_dup.at(i) = _wv4.at(i) * unity(S());
 
     // convert y to x
     _wv5.reset(m);
     // convert v to complex form to make sure that all quantities in dgemm call are of the same type
-    formic::Matrix<std::complex<double> > v_complex(v.rows(), v.cols(), complex_zero);
-    for (int i = 0; i < v_complex.rows(); i++) {
-      for (int j = 0; j < v_complex.cols(); j++) {
-        v_complex.at(i,j) = std::complex<double>(v.at(i,j), 0.0);
-      }
-    }
-    formic::xgemm('N', 'N', m, 1, truncate_index, complex_one, &v_complex.at(0,0), m, &_wv4.at(0), truncate_index, complex_zero, &_wv5.at(0), m);
+    //formic::Matrix<std::complex<double> > v_complex(v.rows(), v.cols(), complex_zero);
+    //for (int i = 0; i < v_complex.rows(); i++) {
+    //  for (int j = 0; j < v_complex.cols(); j++) {
+    //    v_complex.at(i,j) = std::complex<double>(v.at(i,j), 0.0);
+    //  }
+    //}
+    formic::xgemm('N', 'N', m, 1, truncate_index, unity(S()), &v.at(0,0), m, &_wv4_dup.at(0), truncate_index, zero(S()), &_wv5.at(0), m);
 			
     // take real part of vector x, put that into eigenvector
     _sub_evec.reset(m);
     for (int i = 0; i < m; i++){
-      _sub_evec.at(i) = _wv5.at(i).real();
+      _sub_evec.at(i) = _wv5.at(i);
     }
   }
 }
@@ -232,30 +240,31 @@ void cqmc::engine::DavidsonLMHD::solve_subspace(const bool outer)
 //
 /////////////////////////////////////////////////////////////////////////////////
 	
-cqmc::engine::DavidsonLMHD::DavidsonLMHD(const formic::VarDeps * dep_ptr,
-                                         const int nfds,
-                                         const int lm_krylov_iter,
-                                         const double lm_eigen_thresh,
-                                         const double lm_min_S_eval,
-                                         const bool var_deps_use,
-                                         const bool chase_lowest,
-                                         const bool chase_closest,
-                                         const bool ground,
-                                         const bool variance_correct,
-                                         const bool build_lm_matrix,
-                                         const std::vector<double> & vf,
-                                         const double init_cost,
-                                         const double init_variance,
-                                         const double hd_shift,
-                                         const double var_weight,
-                                         const double lm_max_e_change,
-                                         const double total_weight,
-                                         const double vgsa,
-                                         formic::Matrix<double> & der_rat,
-                                         formic::Matrix<double> & le_der,
-                                         formic::Matrix<double> & hmat,
-                                         formic::Matrix<double> & smat,
-                                         formic::Matrix<double> & lmsmat)
+template<class S>
+cqmc::engine::DavidsonLMHD<S>::DavidsonLMHD(const formic::VarDeps * dep_ptr,
+                                            const int nfds,
+                                            const int lm_krylov_iter,
+                                            const double lm_eigen_thresh,
+                                            const double lm_min_S_eval,
+                                            const bool var_deps_use,
+                                            const bool chase_lowest,
+                                            const bool chase_closest,
+                                            const bool ground,
+                                            const bool variance_correct,
+                                            const bool build_lm_matrix,
+                                            const std::vector<double> & vf,
+                                            const S init_cost,
+                                            const S init_variance,
+                                            const double hd_shift,
+                                            const double var_weight,
+                                            const double lm_max_e_change,
+                                            const S total_weight,
+                                            const S vgsa,
+                                            formic::Matrix<S> & der_rat,
+                                            formic::Matrix<S> & le_der,
+                                            formic::Matrix<S> & hmat,
+                                            formic::Matrix<S> & smat,
+                                            formic::Matrix<S> & lmsmat)
 :EigenSolver(dep_ptr,
              nfds,
              lm_eigen_thresh,
@@ -281,7 +290,7 @@ _singular_value_threshold(lm_min_S_eval),
 _hmat(hmat),
 _smat(smat),
 _lmsmat(lmsmat),
-_smallest_sin_value(0.0)
+_smallest_sin_value(zero(S()))
 {
 
   // get rank number and number of ranks 
@@ -397,12 +406,12 @@ _smallest_sin_value(0.0)
 //  }
 
   // initialize the eigenvector
-  _evecs.reset( ( _var_deps_use ? 1 + _dep_ptr->n_tot() : _nfds ), 0.0 );
-  _evecs.at(0) = 1.0;
+  _evecs.reset( ( _var_deps_use ? 1 + _dep_ptr->n_tot() : _nfds ), zero(S()) );
+  _evecs.at(0) = unity(S());
 
   // initialize the independent eigenvector 
-  _ind_evecs.reset( ( _var_deps_use ? 1 + _dep_ptr->n_ind() : _nfds), 0.0 );
-  _ind_evecs.at(0) = 1.0;
+  _ind_evecs.reset( ( _var_deps_use ? 1 + _dep_ptr->n_ind() : _nfds), zero(S()) );
+  _ind_evecs.at(0) = unity(S());
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -411,7 +420,8 @@ _smallest_sin_value(0.0)
 // 
 ////////////////////////////////////////////////////////////////////////////////////
 
-void cqmc::engine::DavidsonLMHD::tau_and_correct_ham()
+template<class S>
+void cqmc::engine::DavidsonLMHD<S>::tau_and_correct_ham()
 {
   // get rank number and number of ranks
   int my_rank = formic::mpi::rank();
@@ -446,14 +456,12 @@ void cqmc::engine::DavidsonLMHD::tau_and_correct_ham()
 //
 ////////////////////////////////////////////////////////////////////////////////////
 		
-void cqmc::engine::DavidsonLMHD::add_krylov_vector(const formic::ColVec<double> & v)
+template<class S>
+void cqmc::engine::DavidsonLMHD<S>::add_krylov_vector(const formic::ColVec<S> & v)
 {
 	
   // get rank number and number of ranks 
   int my_rank = formic::mpi::rank(); 
-  //int num_rank;
-  //MPI_Comm_rank(MPI_COMM_WORLD, & my_rank);
-  //MPI_Comm_size(MPI_COMM_WORLD, & num_rank);
 
   // check vector length
   if (my_rank == 0 && !_build_lm_matrix && v.size() != _der_rat.cols())  
@@ -493,7 +501,7 @@ void cqmc::engine::DavidsonLMHD::add_krylov_vector(const formic::ColVec<double> 
   else {
     this -> SMatVecOp(_wv1, _wv2);
     // reduce the result vector
-    formic::ColVec<double> _wv2_avg(_wv2.size());
+    formic::ColVec<S> _wv2_avg(_wv2.size());
     formic::mpi::reduce(&_wv2.at(0), &_wv2_avg.at(0), _wv2.size(), MPI::SUM);
     _wv2 = _wv2_avg.clone();
   }
@@ -540,7 +548,7 @@ void cqmc::engine::DavidsonLMHD::add_krylov_vector(const formic::ColVec<double> 
 
   // normalize the new krylov vector and save the vector and its operation on overlap matrix 
   if (my_rank == 0) {
-    const double norm = std::sqrt(dotc(_wv1,_wv2));
+    const double norm = std::sqrt(real(dotc(_wv1,_wv2)));
     _wv1 /= norm;
     _wv2 /= norm;
     hs /= norm;
@@ -556,15 +564,15 @@ void cqmc::engine::DavidsonLMHD::add_krylov_vector(const formic::ColVec<double> 
 
     // update subspace projection of the Hamiltonian
     _subH.conservativeResize(_nkry, _nkry);
-    _wv3 = _wv1.t() * _hvecs;
-    _wv6 = _kvecs.t() * hs;
+    _wv3 = _wv1.c() * _hvecs;
+    _wv6 = _kvecs.c() * hs;
     std::copy(_wv3.begin(), _wv3.end(), _subH.row_begin(_nkry-1));
     std::copy(_wv6.begin(), _wv6.end(), _subH.col_begin(_nkry-1));
 
     // update subspace projection of the overlap
     _subS.conservativeResize(_nkry, _nkry);
-    _wv3 = _wv1.t() * _svecs;
-    _wv6 = _kvecs.t() * _wv2;
+    _wv3 = _wv1.c() * _svecs;
+    _wv6 = _kvecs.c() * _wv2;
     std::copy(_wv3.begin(), _wv3.end(), _subS.row_begin(_nkry-1));
     std::copy(_wv6.begin(), _wv6.end(), _subS.row_begin(_nkry-1));
   }
@@ -582,13 +590,11 @@ void cqmc::engine::DavidsonLMHD::add_krylov_vector(const formic::ColVec<double> 
 //
 ////////////////////////////////////////////////////////////////////////////////////
 
-void cqmc::engine::DavidsonLMHD::HMatVecOp(const formic::ColVec<double> & x, formic::ColVec<double> & y, const bool transpose, const bool approximate)
+template<class S>
+void cqmc::engine::DavidsonLMHD<S>::HMatVecOp(const formic::ColVec<S> & x, formic::ColVec<S> & y, const bool transpose, const bool approximate)
 {
 
   int my_rank = formic::mpi::rank(); 
-  //int num_rank;
-  //MPI_Comm_rank(MPI_COMM_WORLD, & my_rank);
-  //MPI_Comm_size(MPI_COMM_WORLD, & num_rank);
 
   // size the resulting vector correctly
   y.reset(x.size());
@@ -601,7 +607,7 @@ void cqmc::engine::DavidsonLMHD::HMatVecOp(const formic::ColVec<double> & x, for
         throw formic::Exception("Davidson solver's matrix-vector multiplication routine doesn't support approximate matrix!"); 
 
       // call level-2 blas function
-      formic::dgemv('N', _hmat.rows(), _hmat.cols(), 1.0, &_hmat.at(0, 0), _hmat.rows(), &x.at(0), 1, 0.0, &y.at(0), 1);
+      formic::xgemv('N', _hmat.rows(), _hmat.cols(), unity(S()), &_hmat.at(0, 0), _hmat.rows(), &x.at(0), 1, zero(S()), &y.at(0), 1);
       //for (int i = 0; i < y.size(); i++) 
         //std::cout << boost::format("%10.8e ") % y(i);
       //std::cout << std::endl;
@@ -640,13 +646,13 @@ void cqmc::engine::DavidsonLMHD::HMatVecOp(const formic::ColVec<double> & x, for
     if ( _ground ) {
 
       // temp vector to store le_der * x
-      formic::ColVec<double> temp(_le_der.rows());
+      formic::ColVec<S> temp(_le_der.rows());
 
       // call blas level-2 function
-      formic::dgemv('N', Ns, Nind, 1.0, &_le_der.at(0,0), Ns, &x.at(0), 1, 0.0, &temp.at(0), 1);
+      formic::xgemv('N', Ns, Nind, unity(S()), &_le_der.at(0,0), Ns, &x.at(0), 1, zero(S()), &temp.at(0), 1);
 
       // call blas level-2 function 
-      formic::dgemv('T', Ns, Nind, 1.0, &_der_rat.at(0,0), Ns, &temp.at(0), 1, 0.0, &y.at(0), 1);
+      formic::xgemv('T', Ns, Nind, unity(S()), &_der_rat.at(0,0), Ns, &temp.at(0), 1, zero(S()), &y.at(0), 1);
           
       //if (my_rank == 0) {
       //  for (int i = 0; i < y.size(); i++) 
@@ -660,22 +666,22 @@ void cqmc::engine::DavidsonLMHD::HMatVecOp(const formic::ColVec<double> & x, for
     else if ( !_ground ) {
      
       // temp vectpr to store omega * der_rat * x
-      formic::ColVec<double> temp1(Ns);
+      formic::ColVec<S> temp1(Ns);
 
       // temp vector to store le_der * x
-      formic::ColVec<double> temp2(Ns);
+      formic::ColVec<S> temp2(Ns);
 
       // call blas level-2 function 
-      formic::dgemv('N', Ns, Nind, _hd_shift, &_der_rat.at(0,0), Ns, &x.at(0), 1, 0.0, &temp1.at(0), 1);
+      formic::xgemv('N', Ns, Nind, _hd_shift, &_der_rat.at(0,0), Ns, &x.at(0), 1, zero(S()), &temp1.at(0), 1);
 
       // call blas level-2 function 
-      formic::dgemv('N', Ns, Nind, 1.0, &_le_der.at(0,0), Ns, &x.at(0), 1, 0.0, &temp2.at(0), 1);
+      formic::xgemv('N', Ns, Nind, unity(S()), &_le_der.at(0,0), Ns, &x.at(0), 1, zero(S()), &temp2.at(0), 1);
 
       // combine these two temp vector together 
       temp1 -= temp2;
 
       // left multiply by _der_rat^T
-      formic::dgemv('T', Ns, Nind, 1.0, &_der_rat.at(0,0), Ns, &temp1.at(0), 1, 0.0, &y.at(0), 1);
+      formic::xgemv('T', Ns, Nind, unity(S()), &_der_rat.at(0,0), Ns, &temp1.at(0), 1, zero(S()), &y.at(0), 1);
       //for (int i = 0; i < y.size(); i++) 
         //std::cout << boost::format("%10.8e ") % y(i);
       //std::cout << std::endl;
@@ -697,7 +703,8 @@ void cqmc::engine::DavidsonLMHD::HMatVecOp(const formic::ColVec<double> & x, for
 //
 ////////////////////////////////////////////////////////////////////////////////////
 
-void cqmc::engine::DavidsonLMHD::SMatVecOp(const formic::ColVec<double> & x, formic::ColVec<double> & y, const bool approximate)
+template<class S>
+void cqmc::engine::DavidsonLMHD<S>::SMatVecOp(const formic::ColVec<S> & x, formic::ColVec<S> & y, const bool approximate)
 {
  
   // size the resulting vector correctly 
@@ -711,7 +718,7 @@ void cqmc::engine::DavidsonLMHD::SMatVecOp(const formic::ColVec<double> & x, for
         throw formic::Exception("Davidson solver's matrix-vector multiplication routine doesn't support approximate matrix!"); 
 
       // call level-2 blas function
-      formic::dgemv('N', _smat.rows(), _smat.cols(), 1.0, &_smat.at(0,0), _smat.rows(), &x.at(0), 1, 0.0, &y.at(0), 1);
+      formic::xgemv('N', _smat.rows(), _smat.cols(), unity(S()), &_smat.at(0,0), _smat.rows(), &x.at(0), 1, zero(S()), &y.at(0), 1);
 
       //for (int i = 0; i < y.size(); i++) 
         //std::cout << boost::format("%10.8e ") % y(i);
@@ -752,13 +759,13 @@ void cqmc::engine::DavidsonLMHD::SMatVecOp(const formic::ColVec<double> & x, for
     if ( _ground ) {
 
       // temp vector to store der_rat * x
-      formic::ColVec<double> temp(Ns);
+      formic::ColVec<S> temp(Ns);
 
       // call blas level-2 function
-      formic::dgemv('N', Ns, Nind, 1.0, &_der_rat.at(0,0), Ns, &x.at(0), 1, 0.0, &temp.at(0), 1);
+      formic::xgemv('N', Ns, Nind, unity(S()), &_der_rat.at(0,0), Ns, &x.at(0), 1, zero(S()), &temp.at(0), 1);
 
       // call blas level-2 function 
-      formic::dgemv('T', Ns, Nind, 1.0, &_der_rat.at(0,0), Ns, &temp.at(0), 1, 0.0, &y.at(0), 1);
+      formic::xgemv('T', Ns, Nind, unity(S()), &_der_rat.at(0,0), Ns, &temp.at(0), 1, zero(S()), &y.at(0), 1);
 
       //for (int i = 0; i < y.size(); i++) 
         //std::cout << boost::format("%10.8e ") % y(i);
@@ -770,28 +777,28 @@ void cqmc::engine::DavidsonLMHD::SMatVecOp(const formic::ColVec<double> & x, for
     else if ( !_ground ) {
      
       // temp vectpr to store omega * der_rat * x
-      formic::ColVec<double> temp1(Ns);
+      formic::ColVec<S> temp1(Ns);
 
       // temp vector to store le_der * x
-      formic::ColVec<double> temp2(Ns);
+      formic::ColVec<S> temp2(Ns);
 
       // temp vector that store omega * der_rat^T * (omega * der_rat - le_der) * x
-      formic::ColVec<double> temp3(x.size());
+      formic::ColVec<S> temp3(x.size());
 
       // call blas level-2 function 
-      formic::dgemv('N', Ns, Nind, _hd_shift, &_der_rat.at(0,0), Ns, &x.at(0), 1, 0.0, &temp1.at(0), 1);
+      formic::xgemv('N', Ns, Nind, _hd_shift, &_der_rat.at(0,0), Ns, &x.at(0), 1, zero(S()), &temp1.at(0), 1);
 
       // call blas level-2 function 
-      formic::dgemv('N', Ns, Nind, 1.0, &_le_der.at(0,0), Ns, &x.at(0), 1, 0.0, &temp2.at(0), 1);
+      formic::xgemv('N', Ns, Nind, unity(S()), &_le_der.at(0,0), Ns, &x.at(0), 1, zero(S()), &temp2.at(0), 1);
 
       // combine these two temp vector together 
       temp1 -= temp2;
 
       // omega * D^T * (omega * D - L) * x  
-      formic::dgemv('T', Ns, Nind, _hd_shift, &_der_rat.at(0,0), Ns, &temp1.at(0), 1, 0.0, &y.at(0), 1);
+      formic::xgemv('T', Ns, Nind, _hd_shift, &_der_rat.at(0,0), Ns, &temp1.at(0), 1, zero(S()), &y.at(0), 1);
 
       // L^T * (omega * D - L) * x
-      formic::dgemv('T', Ns, Nind, 1.0, &_le_der.at(0, 0), Ns, &temp1.at(0), 1, 0.0, &temp3.at(0), 1);
+      formic::xgemv('T', Ns, Nind, unity(S(), &_le_der.at(0, 0), Ns, &temp1.at(0), 1, zero(S()), &temp3.at(0), 1);
 
       // (omega * D^T - L^T) * (omega * D - L) * x
       y -= temp3;
@@ -901,7 +908,8 @@ void cqmc::engine::DavidsonLMHD::SMatVecOp(const formic::ColVec<double> & x, for
 //
 ////////////////////////////////////////////////////////////////////////////////////
 
-void cqmc::engine::DavidsonLMHD::update_hvecs_sub(const double new_i_shift, const double new_s_shift)
+template<class S>
+void cqmc::engine::DavidsonLMHD<S>::update_hvecs_sub(const double new_i_shift, const double new_s_shift)
 {
 
   // get rank number and number of ranks 
@@ -930,7 +938,7 @@ void cqmc::engine::DavidsonLMHD::update_hvecs_sub(const double new_i_shift, cons
     }
 
     // update projection of hamiltonian matrix 
-    _subH = _kvecs.t() * _hvecs;
+    _subH = _kvecs.c() * _hvecs;
   }
 }
   
@@ -942,7 +950,8 @@ void cqmc::engine::DavidsonLMHD::update_hvecs_sub(const double new_i_shift, cons
 //
 ////////////////////////////////////////////////////////////////////////////////////
 
-void cqmc::engine::DavidsonLMHD::update_hamovlp(formic::Matrix<double> & hmat, formic::Matrix<double> & smat)
+template<class S>
+void cqmc::engine::DavidsonLMHD<S>::update_hamovlp(formic::Matrix<S> & hmat, formic::Matrix<S> & smat)
 {
 	
   // get rank number and number of ranks 
@@ -972,7 +981,8 @@ void cqmc::engine::DavidsonLMHD::update_hamovlp(formic::Matrix<double> & hmat, f
 //        subspace and action of Hamiltonian and overlap matrix
 ////////////////////////////////////////////////////////////////////////////////////
 
-void cqmc::engine::DavidsonLMHD::child_reset()
+template<class S>
+void cqmc::engine::DavidsonLMHD<S>::child_reset()
 {
   // clear subspace projection of Hamiltonian and overlap matrix
   _subH.reset(0, 0);
@@ -991,16 +1001,16 @@ void cqmc::engine::DavidsonLMHD::child_reset()
   _sub_evec.reset(0);
 
   // clear all values calculated from last solve
-  _sub_eval = 0.0;
-  _smallest_sin_value = 1e10;
+  _sub_eval = zero(S());
+  _smallest_sin_value = 1e10 * unity(S());
 
   // set the eigenvector to initial guess
-  _evecs.reset( ( _var_deps_use ? 1 + _dep_ptr->n_tot() : _nfds ), 0.0 );
-  _evecs.at(0) = 1.0;
+  _evecs.reset( ( _var_deps_use ? 1 + _dep_ptr->n_tot() : _nfds ), zero(S()) );
+  _evecs.at(0) = unity(S());
 
   // set the independent eigenvector to initial guess
-  _ind_evecs.reset( ( _var_deps_use ? 1 + _dep_ptr->n_ind() : _nfds), 0.0 );
-  _ind_evecs.at(0) = 1.0;
+  _ind_evecs.reset( ( _var_deps_use ? 1 + _dep_ptr->n_ind() : _nfds), zero(S()) );
+  _ind_evecs.at(0) = unity(S());
 }
 
 
@@ -1011,6 +1021,7 @@ void cqmc::engine::DavidsonLMHD::child_reset()
 //
 /////////////////////////////////////////////////////////////////////////////////////
 		
+template<class S>
 bool cqmc::engine::DavidsonLMHD::iterative_solve(double & eval, std::ostream & output)
 {
 	
@@ -1022,8 +1033,8 @@ bool cqmc::engine::DavidsonLMHD::iterative_solve(double & eval, std::ostream & o
   //MPI_Comm_size(MPI_COMM_WORLD, & num_rank);
 
   // initialize the solution vector to the unit vector along the first direction
-  _evecs.reset( ( _var_deps_use ? 1 + _dep_ptr->n_tot() : _nfds ), 0.0 );
-  _evecs.at(0) = 1.0;
+  _evecs.reset( ( _var_deps_use ? 1 + _dep_ptr->n_tot() : _nfds ), zero(S()) );
+  _evecs.at(0) = unity(S());
 
   // ensure that at least one vector is in the krylov subspace 
   if( my_rank == 0 && _nkry == 0)
@@ -1123,12 +1134,12 @@ bool cqmc::engine::DavidsonLMHD::iterative_solve(double & eval, std::ostream & o
       if ( _var_deps_use ) {
 
         // size the eigenvector correctly
-        _evecs.reset(1 + _dep_ptr -> n_tot(), 0.0);
+        _evecs.reset(1 + _dep_ptr -> n_tot(), zero(S()));
         _evecs.at(0) = _ind_evecs.at(0);
 
         // get some temporary vectors
-        formic::ColVec<double> _evec_temp(_dep_ptr -> n_tot());
-        formic::ColVec<double> _ind_temp(_dep_ptr -> n_ind());
+        formic::ColVec<S> _evec_temp(_dep_ptr -> n_tot());
+        formic::ColVec<S> _ind_temp(_dep_ptr -> n_ind());
         for ( int i = 0; i < _ind_temp.size(); i++ ) {
           _ind_temp.at(i) = _ind_evecs.at(i+1);
         }
@@ -1205,7 +1216,8 @@ bool cqmc::engine::DavidsonLMHD::iterative_solve(double & eval, std::ostream & o
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
-bool cqmc::engine::DavidsonLMHD::solve(double & eval, std::ostream & output)
+template<class S>
+bool cqmc::engine::DavidsonLMHD<S>::solve(double & eval, std::ostream & output)
 {
   //if (_spam_use)
   //	return this -> iterative_solve_outer(eval);
@@ -1247,9 +1259,9 @@ bool cqmc::engine::DavidsonLMHD::solve(double & eval, std::ostream & output)
     // add initial guess
     // get the dimension of matrix 
     const int N = _hmat.cols();
-    formic::ColVec<double> temp(N);
+    formic::ColVec<S> temp(N);
     for (int j = 0; j < temp.size(); j++) 
-      temp.at(j) = (j == 0 ? 1.0 : 0.0);
+      temp.at(j) = (j == 0 ? unity(S()) : zero(S()));
     this -> add_krylov_vector(temp);
 
     // iteratively solve the generalized eigenvalue problem
@@ -1327,7 +1339,8 @@ bool cqmc::engine::DavidsonLMHD::solve(double & eval, std::ostream & output)
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
-void cqmc::engine::DavidsonLMHD::child_convert_to_wf_coeff()
+template<class S> 
+void cqmc::engine::DavidsonLMHD<S>::child_convert_to_wf_coeff()
 {
 					
   return;

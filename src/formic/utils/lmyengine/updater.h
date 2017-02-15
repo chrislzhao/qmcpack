@@ -25,7 +25,7 @@ namespace cqmc {
     //
     //
     ////////////////////////////////////////////////////////////////////////////////////////////
-    class HDLinMethodUpdater {
+template<class S> class HDLinMethodUpdater {
 
       private:
         
@@ -36,16 +36,16 @@ namespace cqmc {
       double _var_weight;
 
       /// \brief bare derivative vectors 
-      formic::Matrix<double> & _der_rat;
+      formic::Matrix<S> & _der_rat;
 
       /// \brief energy derivative vectors
-      formic::Matrix<double> & _le_der;
+      formic::Matrix<S> & _le_der;
 
       /// \brief |value/guiding|^2 list
-      const std::vector<double> & _vgs;
+      const std::vector<S> & _vgs;
 
       /// \brief weight list
-      const std::vector<double> & _weight;
+      const std::vector<S> & _weight;
 
       /// \brief vector to store linear method shift scale
       const std::vector<double> & _shift_scale;
@@ -61,11 +61,11 @@ namespace cqmc {
 
       public:
         
-      HDLinMethodUpdater(formic::Matrix<double> & der_rat,
-                         formic::Matrix<double> & le_der,
-                         const std::vector<double> & vgs,
-                         const std::vector<double> & weight,
-                         const std::vector<double> & shift_scale,
+      HDLinMethodUpdater(formic::Matrix<S> & der_rat,
+                         formic::Matrix<S> & le_der,
+                         const std::vector<S> & vgs,
+                         const std::vector<S> & weight,
+                         const std::vector<S> & shift_scale,
                          const double omega,
                          const double var_weight,
                          const bool ground_state,
@@ -111,8 +111,8 @@ namespace cqmc {
                                       const double lm_ham_shift_s,
                                       const double _omega,
                                       const double lm_max_update_abs,
-                                      formic::Matrix<double> & hh,
-                                      formic::Matrix<double> & ss,
+                                      formic::Matrix<S> & hh,
+                                      formic::Matrix<S> & ss,
                                       std::vector<double> & vf_var,
                                       std::vector<bool> & good_solve,
                                       std::vector<int> & shift_solved,

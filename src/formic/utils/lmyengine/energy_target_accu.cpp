@@ -17,6 +17,7 @@
 #include<boost/format.hpp>
 #include<boost/shared_ptr.hpp>
 
+#include<formic/utils/zero_one.h>
 #include<formic/utils/exception.h>
 #include<formic/utils/mpi_interface.h>
 #include<formic/utils/lmyengine/engine_numeric.h>
@@ -27,14 +28,14 @@
 //
 //
 //////////////////////////////////////////////////////////////////////////////////////////////////
-cqmc::engine::ETCompute::ETCompute(const std::vector<double> & le_history,
-                                   const std::vector<double> & vg_history,
-                                   const std::vector<double> & w_history,
-                                   const bool exact_sampling,
-                                   const bool ground_state,
-                                   const bool variance_correct,
-                                   const double hd_shift,
-                                   const double var_weight)
+template<class S > cqmc::engine::ETCompute<S>::ETCompute(const std::vector<S> & le_history,
+                                                         const std::vector<S> & vg_history,
+                                                         const std::vector<S> & w_history,
+                                                         const bool exact_sampling,
+                                                         const bool ground_state,
+                                                         const bool variance_correct,
+                                                         const double hd_shift,
+                                                         const double var_weight)
 : _le_history(le_history),
   _vg_history(vg_history),
   _w_history(w_history),
@@ -43,15 +44,15 @@ cqmc::engine::ETCompute::ETCompute(const std::vector<double> & le_history,
   _variance_correct(variance_correct),
   _hd_shift(hd_shift),
   _var_weight(var_weight),
-  _energy(0.0),
-  _energy_s(0.0),
-  _target_fn_val(0.0),
-  _variance(0.0),
-  _variance_s(0.0),
-  _serr(-1.0),
-  _tnserr(-1.0),
-  _tdserr(-1.0),
-  _tserr(-1.0)
+  _energy(zero(S())),
+  _energy_s(zero(S())),
+  _target_fn_val(zero(S())),
+  _variance(zero(S())),
+  _variance_s(zero(S())),
+  _serr(-1.0 * unity(S())),
+  _tnserr(-1.0 * unity(S())),
+  _tdserr(-1.0 * unity(S())),
+  _tserr(-1.0 * unity(S()))
 {
   // initialize all list based on the input vector 
   this -> history_initialize();
@@ -62,7 +63,7 @@ cqmc::engine::ETCompute::ETCompute(const std::vector<double> & le_history,
 //
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-void cqmc::engine::ETCompute::history_initialize()
+template<class S> void cqmc::engine::ETCompute<S>::history_initialize()
 {
       
   // set constant number 
@@ -74,17 +75,17 @@ void cqmc::engine::ETCompute::history_initialize()
 
   // initialize all history list
   for (int i = 0; i < N; i ++) {
-    double current_eng = _le_history.at(i);
+    S current_eng = _le_history.at(i);
     //std::cout << boost::format("%10.8e ") % current_eng;
-    double current_engv = _le_history.at(i) * _vg_history.at(i);
-    double current_eng_s = current_eng * current_eng;
-    double current_eng_sv = current_eng_s * _vg_history.at(i);
+    S current_engv = _le_history.at(i) * _vg_history.at(i);
+    S current_eng_s = current_eng * current_eng;
+    S current_eng_sv = current_eng_s * _vg_history.at(i);
 
     if (!_ground_state) {
-      double current_tn = _hd_shift - current_eng;
-      double current_tnv = current_tn * _vg_history.at(i);
-      double current_td = _hd_shift * _hd_shift - 2 * _hd_shift * current_eng + current_eng_s;
-      double current_tdv = current_td * _vg_history.at(i);
+      S current_tn = _hd_shift - current_eng;
+      S current_tnv = current_tn * _vg_history.at(i);
+      S current_td = _hd_shift * _hd_shift - 2 * _hd_shift * current_eng + current_eng_s;
+      S current_tdv = current_td * _vg_history.at(i);
       _tn_history.push_back(current_tn);
       _tnv_history.push_back(current_tnv);
       _td_history.push_back(current_td);
@@ -106,7 +107,7 @@ void cqmc::engine::ETCompute::history_initialize()
 //
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-double cqmc::engine::ETCompute::bvar(const int nblocks) const 
+template<class S> S cqmc::engine::ETCompute<S>::bvar(const int nblocks) const 
 {
   // check for sane number of blocks
   assert( nblocks > 0);
@@ -119,29 +120,29 @@ double cqmc::engine::ETCompute::bvar(const int nblocks) const
   const int bl = _le_history.size() / nblocks;
 
   // compute averages of each block on each process 
-  std::vector<double> avgs;
-  avgs.assign(nblocks, 0.0);
+  std::vector<S> avgs;
+  avgs.assign(nblocks, zero(S()));
   for (int i = 0; i < nblocks; i++) {
     const int start = i * bl;
     const int end = ( i == nblocks-1 ? _le_history.size() : (i+1) * bl );
-    avgs.at(i) = std::accumulate( _le_history.begin() + start, _le_history.begin() + end, 0.0) / double(end - start);
+    avgs.at(i) = std::accumulate( _le_history.begin() + start, _le_history.begin() + end, zero(S())) / double(end - start);
   }
 
   // compute avergae of each block across all processes
-  std::vector<double> full_avgs; 
-  full_avgs.assign(nblocks, 0.0);
+  std::vector<S> full_avgs; 
+  full_avgs.assign(nblocks, zero(S()));
   formic::mpi::reduce(&avgs.at(0), &full_avgs.at(0), nblocks, MPI::SUM);
   for (int i = 0; i < nblocks; i++) {
     full_avgs.at(i) /= double(rank_num);
   }
 
   // compute overall average
-  const double avg = std::accumulate(full_avgs.begin(), full_avgs.end(), 0.0) / double(nblocks);
+  const S avg = std::accumulate(full_avgs.begin(), full_avgs.end(), 0.0) / double(nblocks);
 
   // compute the variance of the different blocks' averages
-  double var = 0.0;
+  S var = zero(S());
   for ( int i = 0; i < nblocks; i++) {
-    const double x = avg - full_avgs.at(i);
+    const S x = avg - full_avgs.at(i);
     var += x * x;
   }
   var /= double(nblocks);
@@ -157,7 +158,7 @@ double cqmc::engine::ETCompute::bvar(const int nblocks) const
 //
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-double cqmc::engine::ETCompute::recursive_blocking(std::ostream & fout, const bool print) 
+template<class S> S cqmc::engine::ETCompute<S>::recursive_blocking(std::ostream & fout, const bool print) 
 {
   // get rank number and number of ranks 
   int my_rank = formic::mpi::rank(); 
@@ -173,23 +174,23 @@ double cqmc::engine::ETCompute::recursive_blocking(std::ostream & fout, const bo
   const double nproc = double(num_rank);
 
   // get copies of weights, numerators and denominators
-  std::vector<double> wtv(_w_history);
-  std::vector<double> nmv(_lev_history);
-  std::vector<double> dnv(_vg_history);
+  std::vector<S> wtv(_w_history);
+  std::vector<S> nmv(_lev_history);
+  std::vector<S> dnv(_vg_history);
 
   // get vector to estimate of the errors at different blocking levels
-  std::vector<double> estimates;
+  std::vector<S> estimates;
 
   // each process gets the sample count and variance for each level of blocking
   int sample_end = nmv.size();
   for (int blk_lvl = 0; sample_end >= 200; blk_lvl++) {
 
     // compute and print error estimate for this level of blocking
-    double eng, var;
+    S eng, var;
     cqmc::mpi_unbiased_ratio_of_means(sample_end, &wtv.at(0), &nmv.at(0), &dnv.at(0), true, eng, var);
     estimates.push_back( std::sqrt( var / sample_end / nproc ) );
     if ( my_rank == 0 && print )
-      fout << boost::format("  error estimate for blocks of size 2^(%2i) = %20.12f") % (blk_lvl+1) % (*estimates.rbegin()) << std::endl;
+      fout << boost::format("  error estimate for blocks of size 2^(%2i) = %20.12f") % (blk_lvl+1) % real(*estimates.rbegin()) << std::endl;
 
     // create new sample set by averaging adjacent elements of previous sample
     int j = 0;
@@ -209,7 +210,7 @@ double cqmc::engine::ETCompute::recursive_blocking(std::ostream & fout, const bo
   if ( estimates.size() < 1 )
     throw formic::Exception("no blocks in energy's statistical error analysis");
   const int n_to_avg = std::min(4, int(estimates.size()));
-  _serr = std::accumulate(estimates.rbegin(), estimates.rbegin()+n_to_avg, 0.0) / double(n_to_avg);
+  _serr = std::accumulate(estimates.rbegin(), estimates.rbegin()+n_to_avg, zero(S())) / double(n_to_avg);
 
   // return the overall error estimate
   return _serr;
@@ -222,7 +223,7 @@ double cqmc::engine::ETCompute::recursive_blocking(std::ostream & fout, const bo
 //
 //
 //////////////////////////////////////////////////////////////////////////////////////////////////
-double cqmc::engine::ETCompute::target_fn_nuerr(std::ostream & fout, const bool print)
+template<class S> S cqmc::engine::ETCompute<S>::target_fn_nuerr(std::ostream & fout, const bool print)
 {
     
   // get rank number and number of ranks 
@@ -243,23 +244,23 @@ double cqmc::engine::ETCompute::target_fn_nuerr(std::ostream & fout, const bool 
   const double nproc = double (num_rank);
 
   // get copies of weights, numerators(omega - E) and denominators(|value/guiding|^2)
-  std::vector<double> wtv(_w_history);
-  std::vector<double> nmv(_tnv_history);
-  std::vector<double> dnv(_vg_history);
+  std::vector<S> wtv(_w_history);
+  std::vector<S> nmv(_tnv_history);
+  std::vector<S> dnv(_vg_history);
 
   // get vector to estimates of error at different blocking levels 
-  std::vector<double> estimates;
+  std::vector<S> estimates;
 
   // each process gets the sample count and variance for each level of blocking 
   int sample_end = nmv.size();
   for (int blk_lvl = 0; sample_end >= 200; blk_lvl++) 
   {
     // compute and print error estimate for this level of blocking
-    double value, variance;
+    S value, variance;
     cqmc::mpi_unbiased_ratio_of_means(sample_end, &wtv.at(0), &nmv.at(0), &dnv.at(0), true, value, variance);
     estimates.push_back(std::sqrt( variance / sample_end / nproc) );
     if (my_rank == 0 && print)
-      fout << boost::format("  tn error estimates for block of size 2^(%2i) = %20.12f") % (blk_lvl+1) % (*estimates.rbegin() ) << std::endl;
+      fout << boost::format("  tn error estimates for block of size 2^(%2i) = %20.12f") % (blk_lvl+1) % real(*estimates.rbegin() ) << std::endl;
 
     // create new sample by averaging adjacent elements of previous sample 
     int j = 0;
@@ -277,7 +278,7 @@ double cqmc::engine::ETCompute::target_fn_nuerr(std::ostream & fout, const bool 
   if ( estimates.size() < 1)
     throw formic::Exception("no blocks in target function numerator statistical error analysis");
   const int n_to_avg = std::min(4, int(estimates.size()));
-  double serr = std::accumulate(estimates.rbegin(), estimates.rbegin() + n_to_avg, 0.0) / double(n_to_avg);
+  double serr = std::accumulate(estimates.rbegin(), estimates.rbegin() + n_to_avg, zero(S())) / double(n_to_avg);
 
   // return the overall error estimate 
   return serr;
@@ -290,7 +291,7 @@ double cqmc::engine::ETCompute::target_fn_nuerr(std::ostream & fout, const bool 
 //
 //
 //////////////////////////////////////////////////////////////////////////////////////////////////
-double cqmc::engine::ETCompute::target_fn_dnerr(std::ostream & fout, const bool print)
+template<class S> S cqmc::engine::ETCompute<S>::target_fn_dnerr(std::ostream & fout, const bool print)
 {
       
   // get rank number and number of ranks 
@@ -311,23 +312,23 @@ double cqmc::engine::ETCompute::target_fn_dnerr(std::ostream & fout, const bool 
   const double nproc = double (num_rank);
 	  
   // get copies of weights, numerators(omega - E) and denominators(|value/guiding|^2)
-  std::vector<double> wtv(_w_history);
-  std::vector<double> nmv(_tdv_history);
-  std::vector<double> dnv(_vg_history);
+  std::vector<S> wtv(_w_history);
+  std::vector<S> nmv(_tdv_history);
+  std::vector<S> dnv(_vg_history);
 
   // get vector to estimates of error at different blocking levels 
-  std::vector<double> estimates;
+  std::vector<S> estimates;
 
   // each process gets the sample count and variance for each level of blocking 
   int sample_end = nmv.size();
   for (int blk_lvl = 0; sample_end >= 200; blk_lvl++) 
   {
     // compute and print error estimate for this level of blocking
-    double value, variance;
+    S value, variance;
     cqmc::mpi_unbiased_ratio_of_means(sample_end, &wtv.at(0), &nmv.at(0), &dnv.at(0), true, value, variance);
     estimates.push_back(std::sqrt( variance / sample_end / nproc) );
     if (my_rank == 0 && print)
-      fout << boost::format("  tn error estimates for block of size 2^(%2i) = %20.12f") % (blk_lvl+1) % (*estimates.rbegin() ) << std::endl;
+      fout << boost::format("  tn error estimates for block of size 2^(%2i) = %20.12f") % (blk_lvl+1) % real(*estimates.rbegin() ) << std::endl;
 
     // create new sample by averaging adjacent elements of previous sample 
     int j = 0;
@@ -345,7 +346,7 @@ double cqmc::engine::ETCompute::target_fn_dnerr(std::ostream & fout, const bool 
   if ( estimates.size() < 1)
     throw formic::Exception("no blocks in target function numerator statistical error analysis");
   const int n_to_avg = std::min(4, int(estimates.size()));
-  double serr = std::accumulate(estimates.rbegin(), estimates.rbegin() + n_to_avg, 0.0) / double(n_to_avg);
+  double serr = std::accumulate(estimates.rbegin(), estimates.rbegin() + n_to_avg, zero(S())) / double(n_to_avg);
 
   // return the overall error estimate 
   return serr;
@@ -358,7 +359,7 @@ double cqmc::engine::ETCompute::target_fn_dnerr(std::ostream & fout, const bool 
 //
 //
 //////////////////////////////////////////////////////////////////////////////////////////////////
-double cqmc::engine::ETCompute::target_fn_serr(std::ostream & fout, const bool print)
+template<class S> S cqmc::engine::ETCompute<S>::target_fn_serr(std::ostream & fout, const bool print)
 {
   // make sure the sample was not exact sample
   if ( _exact_sampling )
@@ -375,10 +376,10 @@ double cqmc::engine::ETCompute::target_fn_serr(std::ostream & fout, const bool p
   _tdserr = this -> target_fn_dnerr(fout, print);
 
   // calculate the mean of numerator
-  double _tf_numerator = _hd_shift - _energy;
+  S _tf_numerator = _hd_shift - _energy;
 
   // calculate the mean of denominator
-  double _tf_denominator = _hd_shift * _hd_shift - 2 * _hd_shift * _energy + _energy_s;
+  S _tf_denominator = _hd_shift * _hd_shift - 2 * _hd_shift * _energy + _energy_s;
 
   // calculate the statistical error of target function
   _tserr = std::abs(_target_fn_val) * std::sqrt( (_tnserr / _tf_numerator) * (_tnserr / _tf_numerator) + (_tdserr / _tf_denominator) * (_tdserr / _tf_denominator) );
@@ -393,7 +394,7 @@ double cqmc::engine::ETCompute::target_fn_serr(std::ostream & fout, const bool p
 //
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-void cqmc::engine::ETCompute::en_tar()
+template<class S> void cqmc::engine::ETCompute<S>::en_tar()
 {
 
   // compute the average of energy and its variance 
@@ -411,10 +412,10 @@ void cqmc::engine::ETCompute::en_tar()
   }
   
   // we have not yet calculated the statistical error, so set it to negative to indicate this
-  _serr = -1.0;
+  _serr = -1.0 * unity(S());
 
   // we have not yet calculated the target function statistical error, so set it to negative to indicate this
-  _tserr = -1.0;
+  _tserr = -1.0 * unity(S());
 
 }
 
@@ -424,14 +425,14 @@ void cqmc::engine::ETCompute::en_tar()
 //
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-void cqmc::engine::ETCompute::correct_finite_variance()
+template<class S> void cqmc::engine::ETCompute<S>::correct_finite_variance()
 {
   // if we are doing ground state calculation, throw out an error
   if ( _ground_state ) 
     throw formic::Exception("variance correct algorithm can only be applied to excited state calculations");
 
   // evaluate corrections to target function
-  double correction = _var_weight * 10.0 * (_energy_s - 2.0 * _hd_shift * _energy + _hd_shift * _hd_shift);
+  S correction = _var_weight * 10.0 * (_energy_s - 2.0 * _hd_shift * _energy + _hd_shift * _hd_shift);
 
   // add corrections to target function 
   _target_fn_val += correction;
@@ -446,7 +447,7 @@ void cqmc::engine::ETCompute::correct_finite_variance()
 //
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-void cqmc::engine::ETCompute::print_statistics(std::ostream & fout) 
+template<class S> void cqmc::engine::ETCompute<S>::print_statistics(std::ostream & fout) 
 {
     
   // get rank number and number of ranks 
@@ -456,11 +457,11 @@ void cqmc::engine::ETCompute::print_statistics(std::ostream & fout)
   //MPI_Comm_size(MPI_COMM_WORLD, & num_rank);
 
   // compute mean and variance 
-  double mean = 0.0;
+  S mean = zero(S());
   if ( !_ground_state )
     mean = _hd_shift - 1.0 / _target_fn_val;
 
-  double le_mean = _energy;
+  S le_mean = _energy;
       
   if (my_rank == 0) {
     fout << boost::format("energy and target function accumulation statistics:") << std::endl;
@@ -468,11 +469,11 @@ void cqmc::engine::ETCompute::print_statistics(std::ostream & fout)
   }
 
   // print out recursive blocking information 
-  const double err_rec = ( _exact_sampling ? 0.0 : this -> recursive_blocking(fout) );
+  const S err_rec = ( _exact_sampling ? zero(S()) : this -> recursive_blocking(fout) );
 
-  double terr_rec = 0.0;
+  S terr_rec = zero(S());
   if ( !_ground_state )
-    terr_rec = ( _exact_sampling ? 0.0 : this -> target_fn_serr(fout) );
+    terr_rec = ( _exact_sampling ? zero(S()) : this -> target_fn_serr(fout) );
 
   if (my_rank == 0) {
     fout << std::endl;
@@ -503,28 +504,28 @@ void cqmc::engine::ETCompute::print_statistics(std::ostream & fout)
 }
 
 /// \brief function that returns average of local energy 
-double cqmc::engine::ETCompute::energy() const { return _energy; }
+template<class S> S cqmc::engine::ETCompute<S>::energy() const { return _energy; }
 
 /// \brief function that returns target function value 
-double cqmc::engine::ETCompute::tar_fn_val() const { return _target_fn_val; }
+template<class S> S cqmc::engine::ETCompute<S>::tar_fn_val() const { return _target_fn_val; }
 
 /// \brief function that returns variance 
-double cqmc::engine::ETCompute::variance() const { return _variance; }
+template<class S> S cqmc::engine::ETCompute<S>::variance() const { return _variance; }
 
 /// \brief function that returns statistical error of local energy 
-double cqmc::engine::ETCompute::eserr(std::ostream & fout) {
+template<class S> S cqmc::engine::ETCompute<S>::eserr(std::ostream & fout) {
   if ( _exact_sampling ) 
-    return 0.0;
-  if ( _serr < 0.0)
+    return zero(S());
+  if ( real(_serr) < 0.0)
     this -> recursive_blocking(fout, false);
   return _serr;
 }
 
 /// \brief function that returns statistical error of target function value 
-double cqmc::engine::ETCompute::tserr(std::ostream & fout) {
+template<class S> S cqmc::engine::ETCompute<S>::tserr(std::ostream & fout) {
   if ( _exact_sampling ) 
-    return 0.0;
-  if ( _tserr < 0.0) 
+    return zero(S());
+  if ( real(_tserr) < 0.0) 
     this -> target_fn_serr(fout, false);
   return _tserr;
 }

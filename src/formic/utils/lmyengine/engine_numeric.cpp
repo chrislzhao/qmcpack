@@ -23,19 +23,19 @@
 /// \param[out]    v        on exit, the estimate of the variance in the ratio
 ///
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-void cqmc::unbiased_ratio_of_means(const int n, const double * const p, const double * const f, const double * const g, const bool correct, double & r, double & v) {
+template<class S> void cqmc::unbiased_ratio_of_means(const int n, const S * const p, const S * const f, const S * const g, const bool correct, S & r, S & v) {
 
   // compute the normalization, the numerator and denominator means, the means of the squares, and the mean of the products
-  double nm = 0.0; // normalization constant
-  double mf = 0.0; // mean of numerator
-  double mg = 0.0; // mean of denominator
-  double sf = 0.0; // mean of the square of the numerator terms
-  double sfnc = 0.0; // mean of the square of the numerator used in exact sampling 
-  double sg = 0.0; // mean of the square of the denominator terms
-  double mp = 0.0; // mean of the product of numerator times denominator
+  S nm = 0.0; // normalization constant
+  S mf = 0.0; // mean of numerator
+  S mg = 0.0; // mean of denominator
+  S sf = 0.0; // mean of the square of the numerator terms
+  S sfnc = 0.0; // mean of the square of the numerator used in exact sampling 
+  S sg = 0.0; // mean of the square of the denominator terms
+  S mp = 0.0; // mean of the product of numerator times denominator
   for (int i = 0; i < n; i++) {
     nm += p[i];
-    double x = p[i] * f[i];
+    S x = p[i] * f[i];
     mf += x;
     if ( correct ) {
       sf += x * f[i];
@@ -56,14 +56,14 @@ void cqmc::unbiased_ratio_of_means(const int n, const double * const p, const do
   mp /= nm;
 
   // compute the numerator and denominator variances and the covariance
-  const double vf = ( sf - mf * mf ) * double(n) / double(n-1);
-  const double vg = ( sg - mg * mg ) * double(n) / double(n-1);
-  const double cv = ( mp - mf * mg ) * double(n) / double(n-1);
+  const S vf = ( sf - mf * mf ) * double(n) / double(n-1);
+  const S vg = ( sg - mg * mg ) * double(n) / double(n-1);
+  const S cv = ( mp - mf * mg ) * double(n) / double(n-1);
 
-  double z = ( correct ? 1.0 : 0.0);
+  double z = ( correct ? unity(S()) : zero(S()));
 
   // compute the unbiased estimate of the ratio of means
-  r = ( mf / mg ) / ( 1.0 + z * ( vg / mg / mg - cv / mf / mg ) / double(n) );
+  r = ( mf / mg ) / ( unity(S()) + z * ( vg / mg / mg - cv / mf / mg ) / double(n) );
 
   // compute the unbiased estimate of the variance of the ratio of means
   if ( correct ) 
@@ -86,21 +86,21 @@ void cqmc::unbiased_ratio_of_means(const int n, const double * const p, const do
 /// \param[out]    v        on exit, the estimate of the variance in the ratio
 ///
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-void cqmc::mpi_unbiased_ratio_of_means(const int n, const double * const p, const double * const f, const double * const g, const bool correct, double & r, double & v) {
+template<class S> void cqmc::mpi_unbiased_ratio_of_means(const int n, const S * const p, const S * const f, const S * const g, const bool correct, S & r, S & v) {
 
   // compute the normalization, the numerator and denominator means, the means of the squares, and the mean of the products
-  double y[8];
-  y[0] = 0.0; // normalization constant
-  y[1] = 0.0; // mean of numerator
-  y[2] = 0.0; // mean of denominator
-  y[3] = 0.0; // mean of the square of the numerator terms
-  y[4] = 0.0; // mean of the square of the denominator terms
-  y[5] = 0.0; // mean of the product of numerator times denominator
-  y[6] = double(n); // number of samples
-  y[7] = 0.0; // mean of square of numerator terms used in exact sampling(when correct is false) 
+  S y[8];
+  y[0] = zero(S()); // normalization constant
+  y[1] = zero(S()); // mean of numerator
+  y[2] = zero(S()); // mean of denominator
+  y[3] = zero(S()); // mean of the square of the numerator terms
+  y[4] = zero(S()); // mean of the square of the denominator terms
+  y[5] = zero(S()); // mean of the product of numerator times denominator
+  y[6] = double(n) * unity(S()); // number of samples
+  y[7] = zero(S()); // mean of square of numerator terms used in exact sampling(when correct is false) 
   for (int i = 0; i < n; i++) {
     y[0] += p[i];
-    double x = p[i] * f[i];
+    S x = p[i] * f[i];
     y[1] += x;
     if ( correct ) {
       y[3] += x * f[i];
@@ -113,25 +113,25 @@ void cqmc::mpi_unbiased_ratio_of_means(const int n, const double * const p, cons
     if ( correct )
       y[4] += x * g[i];
   }
-  double z[8];
+  S z[8];
   formic::mpi::allreduce(&y[0], &z[0], 8, MPI::SUM);
-  const double mf = z[1] / z[0]; // mean of numerator
-  const double mg = z[2] / z[0]; // mean of denominator
-  const double sf = z[3] / z[0]; // mean of the square of the numerator terms
-  const double sg = z[4] / z[0]; // mean of the square of the denominator terms
-  const double mp = z[5] / z[0]; // mean of the product of numerator times denominator
-  const double sfnc = z[7] / z[0]; // mean of square of the numerator used in exact sampling  
-  const double ns = z[6];        // number of samples
+  const S mf = z[1] / z[0]; // mean of numerator
+  const S mg = z[2] / z[0]; // mean of denominator
+  const S sf = z[3] / z[0]; // mean of the square of the numerator terms
+  const S sg = z[4] / z[0]; // mean of the square of the denominator terms
+  const S mp = z[5] / z[0]; // mean of the product of numerator times denominator
+  const S sfnc = z[7] / z[0]; // mean of square of the numerator used in exact sampling  
+  const S ns = z[6];        // number of samples
 
   // compute the numerator and denominator variances and the covariance
-  const double vf = ( sf - mf * mf ) * ns / ( ns - 1.0 );
-  const double vg = ( sg - mg * mg ) * ns / ( ns - 1.0 );
-  const double cv = ( mp - mf * mg ) * ns / ( ns - 1.0 );
+  const S vf = ( sf - mf * mf ) * ns / ( ns - 1.0 );
+  const S vg = ( sg - mg * mg ) * ns / ( ns - 1.0 );
+  const S cv = ( mp - mf * mg ) * ns / ( ns - 1.0 );
 
-  double c = (correct ? 1.0 : 0.0);
+  S c = (correct ? unity(S()) : zero(S()));
 
   // compute the unbiased estimate of the ratio of means
-  r = ( mf / mg ) / ( 1.0 + c * ( vg / mg / mg - cv / mf / mg ) / ns );
+  r = ( mf / mg ) / ( unity(S()) + c * ( vg / mg / mg - cv / mf / mg ) / ns );
 
   // compute the unbiased estimate of the variance of the ratio of means
   if ( correct ) 

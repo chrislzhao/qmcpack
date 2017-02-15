@@ -32,18 +32,18 @@ namespace cqmc {
 //
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-class ETCompute {
+template<class S> class ETCompute {
 
   private:
 
     /// \brief [in] history of sampled local energies 
-    std::vector<double> _le_history;
+    std::vector<S> _le_history;
 
     /// \brief [in] history of sampled |value/guiding|^2 ratios 
-    std::vector<double> _vg_history;
+    std::vector<S> _vg_history;
 
     /// \brief [in] history of sampled configuration weight 
-    std::vector<double> _w_history;
+    std::vector<S> _w_history;
 
     /// \brief flag to tell whether exact sampling is being used
     bool _exact_sampling;
@@ -55,34 +55,34 @@ class ETCompute {
     bool _variance_correct;
 
     /// \brief energy;
-    double _energy;
+    S _energy;
 
     /// \brief energy^2
-    double _energy_s;
+    S _energy_s;
 
     /// \brief target function value
-    double _target_fn_val;
+    S _target_fn_val;
 
     /// \brief target function variance
-    double _target_fn_var;
+    S _target_fn_var;
 
     /// \brief variance of energy 
-    double _variance;
+    S _variance;
 
     /// \brief variance of square of energy
-    double _variance_s;
+    S _variance_s;
 
     /// \brief estimated statistical error of energy 
-    double _serr;
+    S _serr;
 
     /// \brief estimated target function numerator statistical error 
-    double _tnserr;
+    S _tnserr;
 
     /// \brief estimated target function denominator statistical error 
-    double _tdserr;
+    S _tdserr;
 
     /// \brief estimated target function statistical error 
-    double _tserr; 
+    S _tserr; 
 
     /// \brief harmonic davidson shift 
     double _hd_shift;
@@ -91,25 +91,25 @@ class ETCompute {
     double _var_weight;
 
     /// \brief a history of sampled local energies times the |value/guiding|^2 raitos
-    std::vector<double> _lev_history;
+    std::vector<S> _lev_history;
 
     /// \brief a history of sampled target function numerator
-    std::vector<double> _tn_history;
+    std::vector<S> _tn_history;
 
     /// \brief a history of target function numerator times the |value/guiding|^2 ratios
-    std::vector<double> _tnv_history;
+    std::vector<S> _tnv_history;
 
     /// \brief a history of target function denominator
-    std::vector<double> _td_history;
+    std::vector<S> _td_history;
 
     /// \brief a history of target function denominator times the |value/guiding|^2 ratios
-    std::vector<double> _tdv_history;
+    std::vector<S> _tdv_history;
 
     /// \brief a history of sampled local energy square 
-    std::vector<double> _les_history;
+    std::vector<S> _les_history;
 
     /// \brief a history of sampled local energy square times |value/guiding|^2 ratios 
-    std::vector<double> _lesv_history;
+    std::vector<S> _lesv_history;
     
     /// \brief maximum length for which to compute autocorrelation
     //int _max_ac_length;
@@ -121,9 +121,9 @@ class ETCompute {
     //
     //
     //////////////////////////////////////////////////////////////////////////////////////////////////
-    ETCompute(const std::vector<double> & le_history,
-              const std::vector<double> & vg_history,
-              const std::vector<double> & w_history,
+    ETCompute(const std::vector<S> & le_history,
+              const std::vector<S> & vg_history,
+              const std::vector<S> & w_history,
               const bool exact_sampling,
               const bool ground_state,
               const bool variance_correct,
@@ -144,7 +144,7 @@ class ETCompute {
     //
     //
     ///////////////////////////////////////////////////////////////////////////////////////////////////
-    double bvar(const int nblocks) const ;
+    S bvar(const int nblocks) const ;
     
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -153,7 +153,7 @@ class ETCompute {
     //
     //
     ///////////////////////////////////////////////////////////////////////////////////////////////////
-    double recursive_blocking(std::ostream & fout, const bool print = true);
+    S recursive_blocking(std::ostream & fout, const bool print = true);
     
     //////////////////////////////////////////////////////////////////////////////////////////////////
     // \brief  performs a recursive blocking analysis of the target function numerator statistical error
@@ -161,7 +161,7 @@ class ETCompute {
     //
     //
     //////////////////////////////////////////////////////////////////////////////////////////////////
-    double target_fn_nuerr(std::ostream & fout, const bool print = false);
+    S target_fn_nuerr(std::ostream & fout, const bool print = false);
         
     //////////////////////////////////////////////////////////////////////////////////////////////////
     // \brief performs a recursive blocking analysis of the target function denominator statistical error
@@ -169,7 +169,7 @@ class ETCompute {
     //
     //
     //////////////////////////////////////////////////////////////////////////////////////////////////
-    double target_fn_dnerr(std::ostream & fout, const bool print = true);
+    S target_fn_dnerr(std::ostream & fout, const bool print = true);
 
     //////////////////////////////////////////////////////////////////////////////////////////////////
     // \brief calculate the statistical error of target function value
@@ -177,7 +177,7 @@ class ETCompute {
     //
     //
     //////////////////////////////////////////////////////////////////////////////////////////////////
-    double target_fn_serr(std::ostream & fout, const bool print = false);
+    S target_fn_serr(std::ostream & fout, const bool print = false);
     
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -205,19 +205,19 @@ class ETCompute {
     void print_statistics(std::ostream & fout);
     
     /// \brief function that returns average of local energy 
-    double energy() const;
+    S energy() const;
 
     /// \brief function that returns target function value 
-    double tar_fn_val() const;
+    S tar_fn_val() const;
 
     /// \brief function that returns variance 
-    double variance() const;
+    S variance() const;
 
     /// \brief function that returns statistical error of local energy 
-    double eserr(std::ostream & fout);
+    S eserr(std::ostream & fout);
 
     /// \brief function that returns statistical error of target function value 
-    double tserr(std::ostream & fout);   
+    S tserr(std::ostream & fout);   
 
     };
  }

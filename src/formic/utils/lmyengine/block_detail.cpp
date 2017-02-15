@@ -83,13 +83,14 @@ void cqmc::engine::brlm_get_block_info(const int nvar, const int nblock, std::ve
 ///         is always the current wavefunction
 ///
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+template<class S>
 formic::Matrix<double> cqmc::engine::get_important_brlm_dirs(const int nkeep, 
                                                              const double curr_e,
                                                              const double shift_i,
                                                              const double shift_s,
                                                              const double ovl_thresh,
-                                                             const formic::Matrix<double> & hh,
-                                                             const formic::Matrix<double> & ss,
+                                                             const formic::Matrix<S> & hh,
+                                                             const formic::Matrix<S> & ss,
                                                              const formic::Matrix<double> & dd,
                                                              std::ostream & output) {
 
@@ -125,20 +126,20 @@ formic::Matrix<double> cqmc::engine::get_important_brlm_dirs(const int nkeep,
   //  throw formic::Exception("expected ss(0,0) to be 1.0 in cqmc::engine::get_important_brlm_dirs");
 
   // put the vectors defining basis 2 in the columns of a matrix 
-  formic::Matrix<double> basis2 = formic::identity_matrix<double>(nd);
-  basis2.at(0,0) = 1.0/std::abs(std::sqrt(ss(0,0)));
+  formic::Matrix<S> basis2 = formic::identity_matrix<S>(nd);
+  basis2.at(0,0) = unity(S())/std::abs(std::sqrt(real(ss(0,0))));
   for (int i = 1; i < nd; i++)
    basis2.at(0,i) -= (ss(i,0)/ss(0,0));
   
   // get H and S in basis 2, including the identity shift effect on H 
-  formic::Matrix<double> hh2 = basis2.t() * ( hh + shift_i * dd ) * basis2;
-  formic::Matrix<double> ss2 = basis2.t() * ss * basis2;
+  formic::Matrix<S> hh2 = basis2.c() * ( hh + unity(S()) * shift_i * dd ) * basis2;
+  formic::Matrix<S> ss2 = basis2.c() * ss * basis2;
   //output << ss2.print("%12.6f", "ss2");
 
   //output << hh2.print("%12.4f", "hh2") << std::endl;
 
   // extract overlap matrix for basis 3
-  formic::Matrix<double> ss3(nd-1,nd-1);
+  formic::Matrix<S> ss3(nd-1,nd-1);
   for (int i = 0; i < nd-1; i++) {
     for (int j = 0; j < nd-1; j++) {
       ss3.at(i,j) = ss2.at(i+1,j+1);
@@ -178,7 +179,7 @@ formic::Matrix<double> cqmc::engine::get_important_brlm_dirs(const int nkeep,
     }
 
     // get overlap in these projected directions
-    formic::Matrix<double> ps = proj_dirs.t() * ss3 * proj_dirs;
+    formic::Matrix<S> ps = proj_dirs.t() * ss3 * proj_dirs;
     //output << ps.print("%12.6f", "ps") << std::endl;
 
     // diagonalize the projected overlap
@@ -209,23 +210,23 @@ formic::Matrix<double> cqmc::engine::get_important_brlm_dirs(const int nkeep,
     //output << basis4.print("%12.6f", "basis4") << std::endl;
 
     // compute overlap in basis 4 and check that it is the identity matrix
-    formic::Matrix<double> ss4 = basis4.t() * ss2 * basis4;
+    formic::Matrix<S> ss4 = basis4.t() * ss2 * basis4;
     //output << ss4.print("%12.6f", "ss4");
     for (int i = 0; i < ss4.rows(); i++) {
       for (int j = 0; j < ss4.cols(); j++) {
-        if ( std::abs( ss4.at(i,j) - ( i == j ? 1.0 : 0.0) ) > 1.0e-6 ) 
+        if ( std::abs( real(ss4.at(i,j)) - ( i == j ? 1.0 : 0.0) ) > 1.0e-6 ) 
           throw formic::Exception("failure to move to orthonormal basis in cqmc::engine::get_important_brlm_dirs, ss4(%i,%i) = %.8e")
                         % i % j % ss4.at(i,j);
        }
      }
 
      // compute Hamiltonian in basis 4
-     formic::Matrix<double> hh4 = basis4.t() * hh2 * basis4;
+     formic::Matrix<S> hh4 = basis4.t() * hh2 * basis4;
      //output << hh4.print("%12.6f", "hh4") << std::endl;
 
      // apply overlap shift to the Hamiltonian
      for (int i = 1; i < hh4.rows(); i++) 
-       hh4.at(i,i) += shift_s;
+       hh4.at(i,i) += unity(S()) * shift_s;
 
      // solve for the lowest energy in eigenvector in basis 4
      formic::ColVec<std::complex<double> > e_evals;

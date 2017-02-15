@@ -28,15 +28,15 @@ namespace cqmc {
 
 namespace engine {
 
-class LMBlocker {
+template<class S> class LMBlocker {
   
   protected:
     
     // Hamiltonian data
-    cqmc::engine::LMBlockerMatData m_hdata;
+    cqmc::engine::LMBlockerMatData<S> m_hdata;
 
     // overlap data
-    cqmc::engine::LMBlockerMatData m_sdata;
+    cqmc::engine::LMBlockerMatData<S> m_sdata;
 
     // matrix storing the old updates coefficients
     formic::Matrix<double> m_ou;
@@ -45,7 +45,7 @@ class LMBlocker {
     std::vector<formic::Matrix<double> >  m_ou_dd;
 
     // total weight
-    double m_tw;
+    S m_tw;
 
     // whether this calculation is ground or excited 
     bool _ground;
@@ -80,19 +80,19 @@ class LMBlocker {
     void reset(const int nv, const int nblock, const std::vector<formic::ColVec<double> > & ou, const bool ground = true, const bool iterative = false); 
 
     // function that returns the average of local energy
-    double avg_e() const { return m_hdata.ww_element() / m_sdata.ww_element(); }
+    S avg_e() const { return m_hdata.ww_element() / m_sdata.ww_element(); }
 
     // function that returns the total weight
-    double total_weight() const { return m_tw; }
+    S total_weight() const { return m_tw; }
 
     // function that accumlates data for Hamiltonian and overlap
-    void acc(const double d, const std::vector<double> & dr, const std::vector<double> & er, const bool ground, const double hd_lm_shift=0.0);
+    void acc(const S d, const std::vector<S> & dr, const std::vector<S> & er, const bool ground, const double hd_lm_shift=0.0);
 
     // function that finalizes the data accumulation
     void finalize();
 
     // function that finalize the data accumulation across all processors
-    void mpi_finalize(const double total_weight);
+    void mpi_finalize(const S total_weight);
 
     // function that
     void prep_lm_block_plus_other_ou_dd_matrix(const int b, const int x, formic::Matrix<double> & dd);

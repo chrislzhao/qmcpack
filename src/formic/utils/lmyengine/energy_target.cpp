@@ -34,25 +34,25 @@
 // \param[out]  tserr             target function statistical error
 //
 //////////////////////////////////////////////////////////////////////////////////////////////////
-void cqmc::engine::et(const bool exact_sampling,
-                      const bool ground_state,
-                      const bool variance_correct,
-                      const bool print,
-                      const double hd_lm_shift,
-                      const double var_weight,
-                      const std::vector<double> & le_history,
-                      const std::vector<double> & vg_history,
-                      const std::vector<double> & w_history,
-                      double & energy,
-                      double & esdev,
-                      double & eserr,
-                      double & target,
-                      double & tserr,
-                      std::ostream & output)
+template<class S> void cqmc::engine::et(const bool exact_sampling,
+                                        const bool ground_state,
+                                        const bool variance_correct,
+                                        const bool print,
+                                        const double hd_lm_shift,
+                                        const double var_weight,
+                                        const std::vector<S> & le_history,
+                                        const std::vector<S> & vg_history,
+                                        const std::vector<S> & w_history,
+                                        S & energy,
+                                        S & esdev,
+                                        S & eserr,
+                                        S & target,
+                                        S & tserr,
+                                        std::ostream & output)
 {
 
   // create a computer for energy and target function 
-  cqmc::engine::ETCompute etcal(le_history, vg_history, w_history, exact_sampling, ground_state, variance_correct, hd_lm_shift, var_weight);
+  cqmc::engine::ETCompute<S> etcal(le_history, vg_history, w_history, exact_sampling, ground_state, variance_correct, hd_lm_shift, var_weight);
 
   // compute energy, target function value and relevent parameters
   etcal.en_tar();

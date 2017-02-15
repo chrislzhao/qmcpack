@@ -28,30 +28,30 @@ namespace cqmc {
 
   namespace engine {
 
-    class HamOvlpBuilderHD{
+template<class S>  class HamOvlpBuilderHD{
 
       private:
 
         /// \brief [out] harmonic davidson hamiltonian matrix 
-        formic::Matrix<double> _hmat;
-        std::vector<formic::Matrix<double> > _hmat_temp;
+        formic::Matrix<S> _hmat;
+        std::vector<formic::Matrix<S> > _hmat_temp;
 
         /// \brief [out] harmonic davidson overlap matrix 
-        formic::Matrix<double> _smat;
-        std::vector<formic::Matrix<double> > _smat_temp;
+        formic::Matrix<S> _smat;
+        std::vector<formic::Matrix<S> > _smat_temp;
 
         /// \brief [out] harmonic davidson approximate hamiltonian matrix used in SPAM algorithm 
-        formic::Matrix<double> _hmat_appro;
+        formic::Matrix<S> _hmat_appro;
 
         /// \brief [out] harmonic davidson approximate overlap matrix used in SPAM algorithm 
-        formic::Matrix<double> _smat_appro;
+        formic::Matrix<S> _smat_appro;
 
         /// \brief [out] S^2 matrix 
-        formic::Matrix<double> _ssmat;
-        std::vector<formic::Matrix<double> > _ssmat_temp;
+        formic::Matrix<S> _ssmat;
+        std::vector<formic::Matrix<S> > _ssmat_temp;
 
         /// \brief [out] normal linear method overlap matrix(only being built if the "variance correct" flag is set to be true
-        formic::Matrix<double> _lsmat;
+        formic::Matrix<S> _lsmat;
 
         /// \brief [in] the harmonic davidson shift 
         double _hd_shift;
@@ -63,31 +63,31 @@ namespace cqmc {
         int _num_params;
 
         /// \brief [in] bare derivative ratios (<n|psi^x> / <n|psi>)
-        formic::Matrix<double> & _der_rat;
+        formic::Matrix<S> & _der_rat;
 
         /// \brief [in] energy derivative ratio (<n|H|psi^x> / <n|psi>)
-        formic::Matrix<double> & _le_der;
+        formic::Matrix<S> & _le_der;
 
         /// \brief [in] S^2 detivative ration (<n|S^2|psi^x> / <n|psi>)
-        formic::Matrix<double> & _ls_der;
+        formic::Matrix<S> & _ls_der;
 
         /// \brief [out] approximate derivative ratios 
-        formic::Matrix<double> _der_rat_appro;
+        formic::Matrix<S> _der_rat_appro;
 
         /// \brief [out] approximate energy derivative ratio
-        formic::Matrix<double> _le_der_appro;
+        formic::Matrix<S> _le_der_appro;
 
         /// \brief [in] list of |value/guiding|^2 history
-        const std::vector<double> & _vgs;
+        const std::vector<S> & _vgs;
 
         /// \brief [out] average of |value/guiding|^2 value
-        double _vgsa;
+        S _vgsa;
 
         /// \brief [in] list of weight history
-        const std::vector<double> & _weight;
+        const std::vector<S> & _weight;
 
         /// \brief [out] total weight used in MPI reduce 
-        double _total_weight;
+        S _total_weight;
 
         /// \brief flag to tell whether to use spam or not, this determines whether to build approximate matrix or not
         bool _spam_use;
@@ -115,11 +115,11 @@ namespace cqmc {
       //
       //
       //////////////////////////////////////////////////////////////////////////////////////////////
-      HamOvlpBuilderHD(formic::Matrix<double> & der_rat, 
-                       formic::Matrix<double> & le_der,
-                       formic::Matrix<double> & ls_der,
-                       const std::vector<double> & vgs,
-                       const std::vector<double> & weight,
+      HamOvlpBuilderHD(formic::Matrix<S> & der_rat, 
+                       formic::Matrix<S> & le_der,
+                       formic::Matrix<S> & ls_der,
+                       const std::vector<S> & vgs,
+                       const std::vector<S> & weight,
                        const double hd_shift,
                        const int num_params,
                        const int appro_degree,
@@ -168,18 +168,18 @@ namespace cqmc {
       //
       //
       /////////////////////////////////////////////////////////////////////////////////////////////
-      void take_sample(std::vector<double> & der_rat_samp,
-                       std::vector<double> & le_der_samp,
-                       std::vector<double> & ls_der_samp,
-                       double vgs_samp,
-                       double weight_samp);
+      void take_sample(std::vector<S> & der_rat_samp,
+                       std::vector<S> & le_der_samp,
+                       std::vector<S> & ls_der_samp,
+                       S vgs_samp,
+                       S weight_samp);
 
       /////////////////////////////////////////////////////////////////////////////////////////////
       /// \brief finish sample by doing MPI communications 
       /// 
       ///
       /////////////////////////////////////////////////////////////////////////////////////////////
-      void finish_sample(const double total_weight);
+      void finish_sample(const S total_weight);
 
       /////////////////////////////////////////////////////////////////////////////////////////////
       // \brief absorb |value/guiding|^2 value and weight value into derivative(used when 
@@ -210,7 +210,7 @@ namespace cqmc {
       // \param[out]   mat     the matrix to be converted
       //
       /////////////////////////////////////////////////////////////////////////////////////////////
-      void convert_to_ind_var_form(const formic::VarDeps * dep_ptr, formic::Matrix<double> & mat);
+      void convert_to_ind_var_form(const formic::VarDeps * dep_ptr, formic::Matrix<S> & mat);
 
       /////////////////////////////////////////////////////////////////////////////////////////////
       // \brief function to project ground state wavefunction out of first derivative space
@@ -227,39 +227,31 @@ namespace cqmc {
       //
       //
       /////////////////////////////////////////////////////////////////////////////////////////////
-      formic::Matrix<double> ovlp_pseudo_inv(const double threshold, std::ostream & fout);
-
-      /////////////////////////////////////////////////////////////////////////////////////////////
-      // \brief function to analyze each derivative vectors 
-      //
-      // 
-      //
-      /////////////////////////////////////////////////////////////////////////////////////////////
-      void derivative_analyze(std::ostream & fout);
+      formic::Matrix<S> ovlp_pseudo_inv(const double threshold, std::ostream & fout);
 
       /// \brief returns total weight
-      double total_weight();
+      S total_weight();
 
       /// \brief returns average of |value/guiding|^2 value 
-      double vgsa();
+      S vgsa();
 
       /// \brief returns the approximate derivative vectors
-      formic::Matrix<double> & approximate_der_vec();
+      formic::Matrix<S> & approximate_der_vec();
 
       /// \brief returns the approximate energy derivatives
-      formic::Matrix<double> & approximate_le_der();
+      formic::Matrix<S> & approximate_le_der();
 
       /// \brief returns the hamiltonian matrix 
-      formic::Matrix<double> & ham();
+      formic::Matrix<S> & ham();
 
       /// \brief returns the overlap matrix 
-      formic::Matrix<double> & ovl();
+      formic::Matrix<S> & ovl();
 
       /// \brief return the S^2 matrix 
-      formic::Matrix<double> & ssquare();
+      formic::Matrix<S> & ssquare();
 
       /// \brief return the nomral linear method overlap matrix 
-      formic::Matrix<double> & lovl();
+      formic::Matrix<S> & lovl();
 
       ///////////////////////////////////////////////////////////////////////////////////
       // \brief do D^(-1/2) transfrom on hamiltonian and overlap matrix 

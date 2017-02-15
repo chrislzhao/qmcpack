@@ -26,7 +26,7 @@ namespace cqmc {
 
 namespace engine {
 
-class LMBlockerMatData {
+template<class S> class LMBlockerMatData {
   
   protected:
     
@@ -43,41 +43,41 @@ class LMBlockerMatData {
     std::vector<int> m_block_len;
 
     // matrix elemnets of <wfn|wfn>
-    std::vector<double> m_ww;
+    std::vector<S> m_ww;
 
     // matrix elements of <wfn|var>
-    std::vector<std::vector<formic::ColVec<double> > > m_wv;
+    std::vector<std::vector<formic::ColVec<S> > > m_wv;
 
     // matrix elements of <var|wfn>
-    std::vector<std::vector<formic::ColVec<double> > > m_vw;
+    std::vector<std::vector<formic::ColVec<S> > > m_vw;
 
     // matrix elements of <wfn|old_update>
-    std::vector<std::vector<formic::ColVec<double> > > m_wo;
+    std::vector<std::vector<formic::ColVec<S> > > m_wo;
 
     // matrix elements of <old_update|wfn>
-    std::vector<std::vector<formic::ColVec<double> > > m_ow;
+    std::vector<std::vector<formic::ColVec<S> > > m_ow;
 
     // matrix elements of <var|var>
-    std::vector<std::vector<formic::Matrix<double> > > m_vv;
+    std::vector<std::vector<formic::Matrix<S> > > m_vv;
 
     // matrix elements of <var|old_update>
-    std::vector<std::vector<formic::Matrix<double> > > m_vo;
+    std::vector<std::vector<formic::Matrix<S> > > m_vo;
 
     // matrix elements of <old_update|var>
-    std::vector<std::vector<formic::Matrix<double> > > m_ov;
+    std::vector<std::vector<formic::Matrix<S> > > m_ov;
 
     // matrix elements of <old_update|old_update>
-    std::vector<std::vector<formic::Matrix<double> > > m_oo;
+    std::vector<std::vector<formic::Matrix<S> > > m_oo;
 
     // used to hold contractions of each block's component of old updates with derivative ratios
-    std::vector<std::vector<formic::ColVec<double> > > m_boulr;
+    std::vector<std::vector<formic::ColVec<S> > > m_boulr;
 
     // used to hold contractions of each block's component of old updates with derivative ratios
-    std::vector<std::vector<formic::ColVec<double> > > m_bourr;
+    std::vector<std::vector<formic::ColVec<S> > > m_bourr;
     
   protected:
 
-    int tot_rows(const std::vector<formic::Matrix<double> > & vom) {
+    int tot_rows(const std::vector<formic::Matrix<S> > & vom) {
       int retval = 0;
       for (int i = 0; i < vom.size(); i++)
         retval += vom.at(i).rows();
@@ -99,25 +99,25 @@ class LMBlockerMatData {
     int bl(const int i) const { return m_block_len.at(i); }
 
     // function that returns <wfn|wfn>
-    double ww_element() const { return m_ww[0]; }
+    S ww_element() const { return m_ww[0]; }
 
     // function that reset the object by clear all data arrays
     void reset(const int nv, const int nblock, const int nou);
 
     // functon that contracts the each block's previous update components with derivatives
-    void prep_block_ou_contractions(const std::vector<double> & dr, const formic::Matrix<double> & ou_mat, std::vector<formic::ColVec<double> > & cont_vec);
+    void prep_block_ou_contractions(const std::vector<S> & dr, const formic::Matrix<double> & ou_mat, std::vector<formic::ColVec<S> > & cont_vec);
 
     // create a matrix in the basis of a block of variables and older updates from a different block
-    void prep_lm_block_plus_other_ou_matrix(const int b, const int x, formic::Matrix<double> & mat);
+    void prep_lm_block_plus_other_ou_matrix(const int b, const int x, formic::Matrix<S> & mat);
 
     // accumulate function 
-    void acc(const double d, const std::vector<double> & lr, const std::vector<double> & rr, const formic::Matrix<double> & ou_mat);
+    void acc(const double d, const std::vector<S> & lr, const std::vector<S> & rr, const formic::Matrix<double> & ou_mat);
 
     // finalize accumulation by dividing each matrix the total weight
-    void finalize(const double total_weight);
+    void finalize(const S total_weight);
 
     // finalize accumulaion by doing mpi reduce
-    void mpi_finalize(const double total_weight);
+    void mpi_finalize(const S total_weight);
 };
 
 }

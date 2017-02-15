@@ -32,7 +32,7 @@ namespace cqmc {
 
   namespace engine {
 
-  class DavidsonLMHD : public EigenSolver{
+template<class S>  class DavidsonLMHD : public EigenSolver<S>{
 
 private:
 
@@ -43,7 +43,7 @@ private:
 	int _n_max_iter;
 
 	/// \brief the smallest subspace overlap matrix singular value
-	double _smallest_sin_value;
+	S _smallest_sin_value;
 
 	/// \brief the subspace eigenvalue(in harmonic Davidson this is not the energy)
 	double _sub_eval;	
@@ -61,13 +61,13 @@ private:
   bool _build_lm_matrix;
 
 	/// \brief the Hamiltonian matrix
-	formic::Matrix<double> & _hmat;
+	formic::Matrix<S> & _hmat;
 
 	/// \brief the overlap matrix 
-	formic::Matrix<double> & _smat;
+	formic::Matrix<S> & _smat;
 
   /// \brief the overlap matrix of normal linear method
-  formic::Matrix<double> & _lmsmat;
+  formic::Matrix<S> & _lmsmat;
 
 	/// \brief the preconditioning matrix
 	//formic::Matrix<double> _mmat;
@@ -76,49 +76,49 @@ private:
   //std::vector<double> _ovl_diag_neg_half;
 
 	/// \brief normalized krylov space basis vectors
-	formic::Matrix<double> _kvecs;
+	formic::Matrix<S> _kvecs;
 
 	/// \brief vectors resulting from Hamiltonian action on the krylov basis 
-	formic::Matrix<double> _hvecs;
+	formic::Matrix<S> _hvecs;
 
 	/// \brief vectors resulting from Hamiltonian transpose action on the krylov basis 
-	formic::Matrix<double> _htvecs;
+	formic::Matrix<S> _htvecs;
 
 	/// \brief vectors resulting from overlap matrix action on the krylov basis 
-	formic::Matrix<double> _svecs;
+	formic::Matrix<S> _svecs;
 
 	/// \brief subspace Hamiltonian matrix
-	formic::Matrix<double> _subH;
+	formic::Matrix<S> _subH;
 
 	/// \brief subspace overlap matrix 
-	formic::Matrix<double> _subS;
+	formic::Matrix<S> _subS;
 
 	/// \brief work vector 
-	formic::ColVec<double> _wv1;
+	formic::ColVec<S> _wv1;
 
 	/// \brief work vector 
-	formic::ColVec<double> _wv2;
+	formic::ColVec<S> _wv2;
 
 	/// \brief work vector 
-	formic::RowVec<double> _wv3;
+	formic::RowVec<S> _wv3;
 
 	/// \brief work vector 
 	formic::ColVec<std::complex<double> > _wv4;
 
 	/// \brief work vector 
-	formic::ColVec<std::complex<double> > _wv5;
+	formic::ColVec<S> _wv5;
 
 	/// \brief work vector
-	formic::ColVec<double> _wv6;
+	formic::ColVec<S> _wv6;
 		
 	/// \brief work vector
-  formic::ColVec<double> _wvX;
+  formic::ColVec<S> _wvX;
 
 	/// \brief work vector
-  formic::ColVec<double> _wvY;
+  formic::ColVec<S> _wvY;
 
 	/// \brief subspace eigenvector 
-  formic::ColVec<double> _sub_evec;
+  formic::ColVec<S> _sub_evec;
 
 
   public:
@@ -191,7 +191,7 @@ public:
 	//
 	////////////////////////////////////////////////////////////////////////////////////
 		
-	void add_krylov_vector(const formic::ColVec<double> & v);
+	void add_krylov_vector(const formic::ColVec<S> & v);
 
   ////////////////////////////////////////////////////////////////////////////////
   // \brief adds a new Krylov basis vector for spam inner loop
@@ -200,7 +200,7 @@ public:
   //
   ////////////////////////////////////////////////////////////////////////////////
 
-  void add_krylov_vector_inner(const formic::ColVec<double> & v)
+  void add_krylov_vector_inner(const formic::ColVec<S> & v)
   {}
 
   ////////////////////////////////////////////////////////////////////////////////
@@ -210,7 +210,7 @@ public:
   //
   ////////////////////////////////////////////////////////////////////////////////
 
-  void add_krylov_vectors_outer(const formic::Matrix<double> & m)
+  void add_krylov_vectors_outer(const formic::Matrix<S> & m)
   {}
 
   ////////////////////////////////////////////////////////////////////////////////////
@@ -224,7 +224,7 @@ public:
   //
   ////////////////////////////////////////////////////////////////////////////////////
 
-  void HMatVecOp(const formic::ColVec<double> & x, formic::ColVec<double> & y, const bool transpose = false, const bool approximate = false);  
+  void HMatVecOp(const formic::ColVec<S> & x, formic::ColVec<S> & y, const bool transpose = false, const bool approximate = false);  
 
   ////////////////////////////////////////////////////////////////////////////////////
   // \brief function that performs hamiltonian matrix-matrix multiplication 
@@ -237,7 +237,7 @@ public:
   //
   ////////////////////////////////////////////////////////////////////////////////////
 
-  void HMatMatOp(const formic::Matrix<double> & x, formic::Matrix<double> & y, const bool transpose, const bool approximate = false)
+  void HMatMatOp(const formic::Matrix<S> & x, formic::Matrix<S> & y, const bool transpose, const bool approximate = false)
   {}
 
   ////////////////////////////////////////////////////////////////////////////////////
@@ -252,7 +252,7 @@ public:
   //
   ////////////////////////////////////////////////////////////////////////////////////
 
-  void SMatVecOp(const formic::ColVec<double> & x, formic::ColVec<double> & y, const bool approximate = false);
+  void SMatVecOp(const formic::ColVec<S> & x, formic::ColVec<S> & y, const bool approximate = false);
 
   ////////////////////////////////////////////////////////////////////////////////////
   // \brief function that performs overlap matrix-matrix multiplication 
@@ -266,7 +266,7 @@ public:
   //
   ////////////////////////////////////////////////////////////////////////////////////
 
-  void SMatMatOp(const formic::Matrix<double> & x, formic::Matrix<double> & y, const bool approximate = false)
+  void SMatMatOp(const formic::Matrix<S> & x, formic::Matrix<S> & y, const bool approximate = false)
   {}
 
   //void MMatVecOp(const formic::ColVec<double> & x, formic::ColVec<double> & y, const int mmat_first);
@@ -287,7 +287,7 @@ public:
 	//
 	////////////////////////////////////////////////////////////////////////////////////
 
-	void update_hamovlp(formic::Matrix<double> & hmat, formic::Matrix<double> & smat);
+	void update_hamovlp(formic::Matrix<S> & hmat, formic::Matrix<S> & smat);
 	
 	////////////////////////////////////////////////////////////////////////////////////
 	// \brief reset the eigen solver 
@@ -314,7 +314,7 @@ public:
 	//
 	///////////////////////////////////////////////////////////////////////////////////////////////
 
-	bool solve(double & eval, std::ostream & output);
+	bool solve(double & S, std::ostream & output);
 	
 	///////////////////////////////////////////////////////////////////////////////////////////////
 	// \brief converts eigenvectors into wave function coefficients
